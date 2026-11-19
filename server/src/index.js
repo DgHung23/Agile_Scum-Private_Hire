@@ -5,10 +5,9 @@ import { pool } from './db.js';
 
 async function main() {
   await migrate();
-  if (process.env.SEED_ON_START === 'true') {
-    const { seed } = await import('./seed.js').catch(() => ({}));
-    if (seed) await seed();
-  }
+  // SEED_ON_START=true seeds reference demo accounts and fleet; =demo also adds a believable booking history
+  if (process.env.SEED_ON_START === 'demo') await (await import('./seedDemo.js')).seedDemo();
+  else if (process.env.SEED_ON_START === 'true') await (await import('./seed.js')).seed();
   const app = createApp();
   const server = app.listen(config.port, () => {
     console.log(`[api] PrivateHire API listening on http://localhost:${config.port}  (${config.env})`);

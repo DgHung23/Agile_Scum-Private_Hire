@@ -13,6 +13,9 @@ export const config = {
   jwtExpiresIn: env.JWT_EXPIRES_IN || '7d',
   corsOrigin: env.CORS_ORIGIN || 'http://localhost:5173',
   publicUrl: env.PUBLIC_URL || 'http://localhost:5173',
+  // Set FORCE_HTTPS=true only when the app is served behind HTTPS (enables HSTS and upgrade-insecure-requests).
+  // Left off by default so phones can test over plain http on the local network.
+  forceHttps: env.FORCE_HTTPS === 'true',
 };
 
 if (isProd && config.jwtSecret === 'dev-only-secret-change-me') {

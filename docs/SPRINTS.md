@@ -88,3 +88,27 @@ cancels or amends within the 24-hour rule.
 Defects found and fixed during the sprint (kept for the retrospective): zod 4 ignoring `required_error`; Express 5
 read-only `req.query`; deadlock when parallel bookings hit the exclusion constraint (fixed with a per-size advisory
 lock); wizard losing its quote after login; PayPal-cancel message being cleared; logout racing the route guard.
+
+### Sprint 3 (tag `sprint-3`) - Call centre, communication, loyalty and release
+
+Increment: call-centre staff serve phone and walk-in customers end to end (verify, book, dispatch, text the customer),
+customers enquire and review, and the business rewards loyal customers. Release hardening and documentation.
+
+| Module | Delivered | Evidence |
+|---|---|---|
+| M7 Call desk | US9.2, 9.3, 9.5, 9.4 UI | 13 API tests: masked search, 2-answer verification + confirmation, lockout, no online discount for phone bookings |
+| M8 Comms and dispatch | US2.1-2.3, 9.8, 9.9, 4.3, 3.7 | 11 API tests: arrival text sent once with reg/colour/make when ETA <= 15, priority-first dispatch, driver clash refused |
+| M9 Reviews and loyalty | US7.1, 7.2, 10.1-10.4, 1.6 | 15 API tests: one review per booking, offer single-use and released on cancel, manager-only reports |
+| M10 Release | Dockerfile (single container), demo dataset, traceability matrix, API and architecture docs, opt-in HTTPS headers | 97/97 tests, 62-page regression crawl (4 roles x desktop/mobile) with no errors or overflow, container verified in a real browser |
+
+Defects found and fixed during the sprint: a template-literal regex escape that disabled the CVV check in the browser;
+HSTS / `upgrade-insecure-requests` would have broken testing from a phone over plain http (now opt-in via `FORCE_HTTPS`);
+demo seeder needed savepoints so an overlapping slot does not abort the transaction.
+
+### Sprint retrospective notes (draft for the report)
+
+- **Went well:** each module shipped with automated tests plus a browser run at two widths; the database constraints caught a
+  concurrency bug before any user could.
+- **Did not go well:** several bugs were test-script races rather than product bugs, which cost time; error-message options
+  changed between zod versions and was only noticed in Sprint 2.
+- **Improve next time:** add the traceability table at the start of the project, and run the browser regression crawl in CI.

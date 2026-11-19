@@ -15,9 +15,11 @@ export function createApp() {
   app.set('trust proxy', 1);
   app.use(
     helmet({
+      hsts: config.forceHttps,
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
+          'upgrade-insecure-requests': config.forceHttps ? [] : null,
           'script-src': ["'self'"],
           'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
           'font-src': ["'self'", 'https://fonts.gstatic.com'],
