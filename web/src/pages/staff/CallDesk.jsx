@@ -199,12 +199,42 @@ function CancelByStaff({ b, onClose, onDone }) {
   );
 }
 
+function EmailModal({ customer, onClose, onDone }) {
+  const [f, setF] = useState({ subject: '', message: '' });
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const send = async () => {
+    setBusy(true);
+    setErr('');
+    setErrors({});
+    try {
+      await api.post(`/staff/customers/${customer.id}/email`, f);
+      onDone();
+    } catch (e) {
+      setErrors(e.fields || {});
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={`Email ${customer.fullName}`} onClose={onClose}
+      footer={<><button className="btn btn-subtle" onClick={onClose} disabled={busy}>Cancel</button><button className="btn" onClick={send} disabled={busy}>{busy ? 'Sending...' : 'Send email'}</button></>}>
+      {err && !Object.keys(errors).length && <Alert tone="error">{err}</Alert>}
+      <p className="small muted">To {customer.email}. The message is saved in the outbox against your name.</p>
+      <TextField label="Subject" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} error={errors.subject} />
+      <TextArea label="Message" value={f.message} onChange={(e) => setF({ ...f, message: e.target.value })} error={errors.message} />
+    </Modal>
+  );
+}
+
 export function CallDeskCustomer() {
   const { id } = useParams();
   const loc = useLocation();
   const toast = useToast();
   const { data, loading, error, reload } = useLoad(() => api.get(`/staff/customers/${id}`), [id]);
   const [cancel, setCancel] = useState(null);
+  const [emailing, setEmailing] = useState(false);
 
   if (loading) return <Loading />;
   if (error?.code === 'not_verified') return <VerifyPanel id={id} name={loc.state?.name} onVerified={reload} />;
@@ -219,7 +249,10 @@ export function CallDeskCustomer() {
           <h2>{c.fullName}</h2>
           <p className="muted"><span className="badge green"><Icon name="check" size={12} /> Identity verified</span> &nbsp;Verification lasts 30 minutes.</p>
         </div>
-        <Link to={`/staff/call-desk/${id}/book`} state={{ name: c.fullName }} className="btn btn-lg"><Icon name="car" size={18} /> Book for {c.fullName.split(' ')[0]}</Link>
+        <div className="row">
+          <button className="btn btn-secondary btn-lg" onClick={() => setEmailing(true)}><Icon name="mail" size={18} /> Email customer</button>
+          <Link to={`/staff/call-desk/${id}/book`} state={{ name: c.fullName }} className="btn btn-lg"><Icon name="car" size={18} /> Book for {c.fullName.split(' ')[0]}</Link>
+        </div>
       </div>
       <div className="grid grid-3">
         <div className="card stack-sm">
@@ -263,6 +296,7 @@ export function CallDeskCustomer() {
           </div>
         ))}
       </section>
+      {emailing && <EmailModal customer={c} onClose={() => setEmailing(false)} onDone={() => { setEmailing(false); toast('Email sent and recorded in the outbox', 'success'); }} />}
       {cancel && <CancelByStaff b={cancel} onClose={() => setCancel(null)} onDone={(r) => { setCancel(null); toast(r.refund ? `Cancelled. ${money(r.refund.amount)} refunded.` : 'Cancelled.', 'success'); reload(); }} />}
     </div>
   );

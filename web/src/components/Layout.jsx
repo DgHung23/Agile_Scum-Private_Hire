@@ -215,6 +215,8 @@ export function PublicLayout() {
 const STAFF_NAV = [
   { to: '/staff', label: 'Dashboard', icon: 'grid', end: true },
   { to: '/staff/call-desk', label: 'Call desk', icon: 'headset' },
+  { to: '/staff/dispatch', label: 'Dispatch', icon: 'route' },
+  { to: '/staff/enquiries', label: 'Enquiries', icon: 'message' },
   { to: '/staff/availability', label: 'Availability', icon: 'map' },
   { to: '/staff/fleet', label: 'Fleet', icon: 'car' },
   { to: '/staff/drivers', label: 'Drivers', icon: 'wheel' },

@@ -181,6 +181,7 @@ export function serializeBooking(row, { cancelWindowHours = 24, forStaff = false
       : null,
     driver: showVehicle && row.driver_name ? { name: row.driver_name, ...(forStaff ? { phone: row.driver_phone } : {}) } : null,
     etaMinutes: row.eta_minutes,
+    arrivalSmsSent: !!row.arrival_sms_sent_at,
     paymentStatus: row.payment_status ?? null,
     modifiable: modifiable(row, cancelWindowHours),
     cancelDeadline: new Date(new Date(row.pickup_at).getTime() - cancelWindowHours * 3600_000).toISOString(),

@@ -18,6 +18,9 @@ import { StaffDrivers, StaffFleet } from './pages/staff/Fleet.jsx';
 import { CallDesk, CallDeskCustomer, NewCaller } from './pages/staff/CallDesk.jsx';
 import StaffBook from './pages/staff/StaffBook.jsx';
 import StaffAvailability from './pages/staff/StaffAvailability.jsx';
+import StaffEnquiries from './pages/staff/Enquiries.jsx';
+import Dispatch from './pages/staff/Dispatch.jsx';
+import Contact from './pages/Contact.jsx';
 
 const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
 
@@ -31,6 +34,7 @@ export default function App() {
         <Route path="staff/login" element={<StaffLogin />} />
         <Route path="book" element={<Book />} />
         <Route path="services" element={<Services />} />
+        <Route path="contact" element={<Contact />} />
         <Route path="trips" element={customer(<Trips />)} />
         <Route path="trips/:id" element={customer(<TripDetail />)} />
         <Route path="trips/:id/amend" element={customer(<Amend />)} />
@@ -54,6 +58,8 @@ export default function App() {
         <Route path="call-desk/new" element={<NewCaller />} />
         <Route path="call-desk/:id" element={<CallDeskCustomer />} />
         <Route path="call-desk/:id/book" element={<StaffBook />} />
+        <Route path="dispatch" element={<Dispatch />} />
+        <Route path="enquiries" element={<StaffEnquiries />} />
         <Route path="availability" element={<StaffAvailability />} />
         <Route path="fleet" element={<StaffFleet />} />
         <Route path="drivers" element={<StaffDrivers />} />
