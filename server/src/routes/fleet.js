@@ -51,7 +51,7 @@ const serializeCab = (c) => ({
 
 const CAB_SELECT = `
   SELECT c.*, s.label AS size_label, s.seats,
-         (SELECT count(*) FROM bookings b WHERE b.cab_id = c.id AND b.status <> 'cancelled' AND b.end_at > now()) AS upcoming
+         (SELECT count(*) FROM bookings b WHERE b.cab_id = c.id AND b.status NOT IN ('cancelled','company_cancelled','abandoned') AND b.end_at > now()) AS upcoming
     FROM cabs c JOIN cab_sizes s ON s.code = c.size_code`;
 
 const cabList = z.object({
@@ -123,7 +123,7 @@ router.patch(
     if (!existing.rowCount) throw notFound('Cab not found');
     if (d.active === false && existing.rows[0].active) {
       const up = await query(
-        "SELECT count(*)::int AS n FROM bookings WHERE cab_id = $1 AND status <> 'cancelled' AND end_at > now()",
+        "SELECT count(*)::int AS n FROM bookings WHERE cab_id = $1 AND status NOT IN ('cancelled','company_cancelled','abandoned') AND end_at > now()",
         [req.params.id],
       );
       if (up.rows[0].n > 0) {
@@ -172,7 +172,7 @@ const serializeDriver = (d) => ({
 });
 
 const DRIVER_SELECT = `
-  SELECT d.*, (SELECT count(*) FROM bookings b WHERE b.driver_id = d.id AND b.status <> 'cancelled' AND b.end_at > now()) AS upcoming
+  SELECT d.*, (SELECT count(*) FROM bookings b WHERE b.driver_id = d.id AND b.status NOT IN ('cancelled','company_cancelled','abandoned') AND b.end_at > now()) AS upcoming
     FROM drivers d`;
 
 const dupLicence = (e) => {
@@ -230,7 +230,7 @@ router.patch(
     if (!existing.rowCount) throw notFound('Driver not found');
     if (d.active === false && existing.rows[0].active) {
       const up = await query(
-        "SELECT count(*)::int AS n FROM bookings WHERE driver_id = $1 AND status <> 'cancelled' AND end_at > now()",
+        "SELECT count(*)::int AS n FROM bookings WHERE driver_id = $1 AND status NOT IN ('cancelled','company_cancelled','abandoned') AND end_at > now()",
         [req.params.id],
       );
       if (up.rows[0].n > 0) {

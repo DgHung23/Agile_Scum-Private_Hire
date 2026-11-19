@@ -7,7 +7,7 @@ import { migrate } from './migrate.js';
 /** Demo accounts - safe to run repeatedly (idempotent). Passwords are for local demo only. */
 export const DEMO = {
   admin: { email: 'admin@privatehire.test', password: 'AdminPass123!', name: 'George Smith', role: 'admin', phone: '020 7000 0001' },
-  manager: { email: 'manager@privatehire.test', password: 'ManagerPass123!', name: 'Priya Shah', role: 'manager', phone: '020 7000 0003' },
+  manager: { email: 'manager@privatehire.test', password: 'ManagerPass123!', name: 'Jordan Blake', role: 'manager', phone: '020 7000 0003' },
   staff: { email: 'staff@privatehire.test', password: 'StaffPass123!', name: 'Sam Carter', role: 'staff', phone: '020 7000 0002', refundLimit: 50 },
   customer: { email: 'customer@privatehire.test', password: 'Customer123!', name: 'Alex Morgan', role: 'customer', phone: '07700 900123', secretWord: 'bluebird', marketing: true },
 };
@@ -119,9 +119,9 @@ export async function seedFleet() {
       const [make, model] = CAB_MODELS[size][i % CAB_MODELS[size].length];
       const reg = `${LETTERS[(n * 3) % 23]}${LETTERS[(n * 5 + 2) % 23]}${21 + (n % 4)} ${LETTERS[(n * 7) % 23]}${LETTERS[(n * 11 + 3) % 23]}${LETTERS[(n * 13 + 5) % 23]}`;
       await query(
-        `INSERT INTO cabs (reg, make, model, colour, size_code) VALUES ($1,$2,$3,$4,$5)
+        `INSERT INTO cabs (reg, make, model, colour, size_code, wheelchair_accessible) VALUES ($1,$2,$3,$4,$5,$6)
          ON CONFLICT DO NOTHING`,
-        [reg, make, model, COLOURS[n % COLOURS.length], size],
+        [reg, make, model, COLOURS[n % COLOURS.length], size, ['mpv7', 'minibus'].includes(size)], // ID-39: accessible vehicles
       );
     }
   }

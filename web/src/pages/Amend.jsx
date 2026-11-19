@@ -12,6 +12,7 @@ export default function Amend() {
   const booking = useLoad(() => api.get(`/bookings/${id}`), [id]);
   const sizes = useLoad(() => api.publicGet('/catalog/cab-sizes'));
   const places = useLoad(() => api.publicGet('/catalog/locations?limit=50'));
+  const packages = useLoad(() => api.publicGet('/catalog/packages'));
   const [f, setF] = useState(null);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
@@ -23,7 +24,7 @@ export default function Amend() {
   useEffect(() => {
     if (b && !f) {
       const { date, time } = londonParts(b.pickupAt);
-      setF({ pickup: b.pickup, destination: b.destination, date, time, passengers: b.passengers, hours: b.hours || '', sizeCode: b.size.code });
+      setF({ pickup: b.pickup, destination: b.destination, date, time, passengers: b.passengers, luggage: b.luggage || 0, hours: b.hours || '', packageCode: b.package?.code || '', sizeCode: b.size.code });
     }
   }, [b, f]);
 
@@ -43,6 +44,8 @@ export default function Amend() {
     destination: hourly ? '' : f.destination,
     pickupAt: londonToIso(f.date, f.time) || '',
     passengers: Number(f.passengers),
+    luggage: Number(f.luggage) || 0,
+    ...(f.packageCode ? { packageCode: f.packageCode } : {}),
     sizeCode: f.sizeCode,
     ...(hourly ? { hours: Number(f.hours) } : {}),
   });
@@ -131,8 +134,14 @@ export default function Amend() {
             {!hourly && <TextField className="span-2" label="Destination" list="places" value={f.destination} onChange={(e) => set('destination', e.target.value)} error={errors.destination} />}
             <TextField label="Date" type="date" min={todayLondon()} value={f.date} onChange={(e) => set('date', e.target.value)} error={errors.date} />
             <TextField label="Pickup time" type="time" step="300" value={f.time} onChange={(e) => set('time', e.target.value)} error={errors.time} />
-            <TextField label="Passengers" type="number" min="1" max="16" value={f.passengers} onChange={(e) => set('passengers', e.target.value)} error={errors.passengers} />
-            {hourly && <TextField label="Hours" type="number" min="4" max="12" value={f.hours} onChange={(e) => set('hours', e.target.value)} error={errors.hours} />}
+            <TextField label="Passengers" type="number" min="1" max="8" value={f.passengers} onChange={(e) => set('passengers', e.target.value)} error={errors.passengers} />
+            <TextField label="Bags" type="number" min="0" max="12" value={f.luggage} onChange={(e) => set('luggage', e.target.value)} error={errors.luggage} />
+            {hourly && f.packageCode && (
+              <SelectField label="Package" value={f.packageCode} onChange={(e) => set('packageCode', e.target.value)} error={errors.packageCode}>
+                {(packages.data?.packages || []).map((p) => <option key={p.code} value={p.code}>{p.label}</option>)}
+              </SelectField>
+            )}
+            {hourly && !f.packageCode && <TextField label="Hours" type="number" min="4" max="12" value={f.hours} onChange={(e) => set('hours', e.target.value)} error={errors.hours} />}
             <SelectField className="span-2" label="Cab size" value={f.sizeCode} onChange={(e) => set('sizeCode', e.target.value)} error={errors.sizeCode}>
               {(sizes.data?.cabSizes || []).map((s) => <option key={s.code} value={s.code} disabled={s.seats < Number(f.passengers)}>{s.label}</option>)}
             </SelectField>

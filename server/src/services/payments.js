@@ -89,24 +89,6 @@ export const cardInputSchema = z
     for (const [field, message] of Object.entries(validateCard(c))) ctx.addIssue({ code: 'custom', path: [field], message });
   });
 
-export const paymentSchema = z
-  .object({
-    method: z.enum(['card', 'paypal'], { error: 'Choose how you would like to pay' }),
-    card: cardInputSchema.optional(),
-    savedCardId: z.string().uuid().optional(),
-    cvv: z.string().optional(),
-    saveCard: z.boolean().optional(),
-    token: z.string().optional(),
-  })
-  .superRefine((p, ctx) => {
-    if (p.method === 'card' && !p.card && !p.savedCardId) {
-      ctx.addIssue({ code: 'custom', path: ['card', 'number'], message: 'Enter your card details or choose a saved card' });
-    }
-    if (p.method === 'paypal' && !p.token) {
-      ctx.addIssue({ code: 'custom', path: ['token'], message: 'Approve the payment in PayPal first' });
-    }
-  });
-
 /** Simulated bank outcome from a card number. */
 export function simOutcome(number) {
   const n = digits(number);
@@ -132,18 +114,29 @@ export async function visaCheck({ outcome, amount }) {
 
 const declined = (reason) => new HttpError(402, reason, 'payment_declined');
 
-/** Save a card for later (US1.4). Never stores the number or CVV. */
-export async function createSavedCard(db, userId, card) {
+/**
+ * Save a card for later (ID-14). Never stores the number or CVV.
+ * `known` is used after a 3D Secure check, when only brand, last 4 digits and expiry are kept.
+ */
+export async function createSavedCard(db, userId, card, known = null) {
   const run = db ? db.query.bind(db) : query;
-  const n = digits(card.number);
+  const n = card ? digits(card.number) : null;
+  const f = known || {
+    brand: detectBrand(n),
+    last4: n.slice(-4),
+    expMonth: Number(card.expMonth),
+    expYear: normYear(card.expYear),
+    holder: card.holder,
+    outcome: simOutcome(n),
+  };
   const dup = await run('SELECT * FROM saved_cards WHERE user_id=$1 AND last4=$2 AND exp_month=$3 AND exp_year=$4 AND brand=$5', [
-    userId, n.slice(-4), Number(card.expMonth), normYear(card.expYear), detectBrand(n),
+    userId, f.last4, f.expMonth, f.expYear, f.brand,
   ]);
   if (dup.rowCount) return dup.rows[0];
   const { rows } = await run(
     `INSERT INTO saved_cards (user_id, brand, last4, exp_month, exp_year, holder_name, gateway_token, sim_outcome)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [userId, detectBrand(n), n.slice(-4), Number(card.expMonth), normYear(card.expYear), card.holder, 'tok_' + crypto.randomBytes(10).toString('hex'), simOutcome(n)],
+    [userId, f.brand, f.last4, f.expMonth, f.expYear, f.holder, 'tok_' + crypto.randomBytes(10).toString('hex'), f.outcome],
   );
   return rows[0];
 }
@@ -158,74 +151,6 @@ export const serializeCard = (c) => ({
   holder: c.holder_name,
   expired: new Date(Date.UTC(c.exp_year, c.exp_month, 1)).getTime() <= Date.now(),
 });
-
-/**
- * Take a payment for a booking inside the booking transaction.
- * Throws HttpError 402 when declined so the whole booking rolls back (US5.3 criterion 3).
- * The caller records declined attempts afterwards with recordDeclined().
- */
-export async function takePayment(db, { userId, bookingId, amount, payment }) {
-  if (payment.method === 'cash') {
-    const { rows } = await db.query(
-      `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, note) VALUES ($1,$2,'charge','cash',$3,'approved','Paid in person') RETURNING *`,
-      [bookingId, userId, amount],
-    );
-    return rows[0];
-  }
-
-  if (payment.method === 'paypal') {
-    const { rows } = await db.query('SELECT * FROM paypal_sessions WHERE token=$1 FOR UPDATE', [payment.token]);
-    const s = rows[0];
-    if (!s || s.user_id !== userId) throw declined('PayPal payment was not found. Please start again.');
-    if (s.status === 'cancelled') throw declined('You cancelled the PayPal payment.');
-    if (s.status !== 'approved') throw declined('Approve the payment in PayPal before confirming.');
-    if (Math.abs(Number(s.amount) - amount) > 0.005) {
-      throw declined(`The price changed to GBP ${amount.toFixed(2)} since you approved the PayPal payment. Please approve it again.`);
-    }
-    await db.query("UPDATE paypal_sessions SET status='used' WHERE token=$1", [payment.token]);
-    const ref = 'PP-' + crypto.randomBytes(5).toString('hex').toUpperCase();
-    const ins = await db.query(
-      `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, paypal_payer, gateway_ref)
-       VALUES ($1,$2,'charge','paypal',$3,'approved',$4,$5) RETURNING *`,
-      [bookingId, userId, amount, s.payer_email, ref],
-    );
-    return ins.rows[0];
-  }
-
-  // card
-  let brand;
-  let last4;
-  let outcome;
-  if (payment.savedCardId) {
-    const { rows } = await db.query('SELECT * FROM saved_cards WHERE id=$1 AND user_id=$2', [payment.savedCardId, userId]);
-    const c = rows[0];
-    if (!c) throw badRequest('That saved card was not found', { 'payment.savedCardId': 'That saved card was not found' });
-    if (serializeCard(c).expired) throw declined('This saved card has expired. Please use a different card.');
-    if (!cvvValid(payment.cvv, c.brand)) {
-      throw badRequest('Enter the security code for this card', {
-        'payment.cvv': `Security code must be ${c.brand === 'amex' ? 4 : 3} digits`,
-      });
-    }
-    ({ brand, last4, sim_outcome: outcome } = c);
-  } else {
-    const n = digits(payment.card.number);
-    brand = detectBrand(n);
-    last4 = n.slice(-4);
-    outcome = simOutcome(n);
-  }
-  const check = await visaCheck({ outcome, amount });
-  if (!check.approved) {
-    const e = declined(check.reason);
-    e.card = { brand, last4 };
-    throw e;
-  }
-  const { rows } = await db.query(
-    `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, card_brand, card_last4, gateway_ref)
-     VALUES ($1,$2,'charge','card',$3,'approved',$4,$5,$6) RETURNING *`,
-    [bookingId, userId, amount, brand, last4, check.ref],
-  );
-  return rows[0];
-}
 
 /** Audit trail for a declined attempt (written after the booking transaction rolled back). */
 export async function recordDeclined({ userId, amount, method, card, reason }) {
@@ -246,10 +171,10 @@ export async function refundPayment(db, { bookingId, userId, amount, note }) {
   const orig = last[0];
   if (!orig) return null;
   const { rows } = await db.query(
-    `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, card_brand, card_last4, paypal_payer, gateway_ref, note)
-     VALUES ($1,$2,'refund',$3,$4,'approved',$5,$6,$7,$8,$9) RETURNING *`,
+    `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, card_brand, card_last4, paypal_payer, gateway_ref, note, bank_name)
+     VALUES ($1,$2,'refund',$3,$4,'approved',$5,$6,$7,$8,$9,$10) RETURNING *`,
     [bookingId, userId, orig.method, amount, orig.card_brand, orig.card_last4, orig.paypal_payer,
-      'RF-' + crypto.randomBytes(5).toString('hex').toUpperCase(), note || null],
+      'RF-' + crypto.randomBytes(5).toString('hex').toUpperCase(), note || null, orig.bank_name],
   );
   return rows[0];
 }
@@ -264,6 +189,9 @@ export const serializePayment = (p) => ({
   cardBrandLabel: p.card_brand ? BRAND_LABEL[p.card_brand] : null,
   cardLast4: p.card_last4,
   paypalPayer: p.paypal_payer,
+  bankName: p.bank_name,
+  scaVerified: p.sca_verified,
+  declineReason: p.decline_reason,
   reference: p.gateway_ref,
   note: p.note,
   createdAt: p.created_at,
@@ -271,4 +199,10 @@ export const serializePayment = (p) => ({
 
 /** Human text used in emails and receipts. */
 export const describeMethod = (p) =>
-  p.method === 'card' ? `${BRAND_LABEL[p.card_brand]} ending ${p.card_last4}` : p.method === 'paypal' ? 'PayPal' : 'Cash (paid in person)';
+  ({
+    card: `${BRAND_LABEL[p.card_brand]} ending ${p.card_last4}`,
+    paypal: 'PayPal',
+    bank: `Pay by bank${p.bank_name ? ` (${p.bank_name})` : ''}`,
+    cash: 'Cash',
+    invoice: 'Company account (monthly invoice)',
+  })[p.method] || p.method;

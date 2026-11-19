@@ -9,8 +9,10 @@ import {
   loadBookingRow,
   modifiable,
   prepareJourney,
+  priceFor,
+  recordDiscounts,
+  sizeProblems,
 } from './booking.js';
-import { computeQuote } from './pricing.js';
 import { sendEmail } from './notify.js';
 import { describeMethod, refundPayment } from './payments.js';
 
@@ -32,7 +34,7 @@ async function netPaid(db, bookingId) {
 
 function assertChangeable(row, settings, { override }) {
   if (!['confirmed', 'assigned'].includes(row.status)) {
-    throw new HttpError(409, `This booking is ${row.status.replace('_', ' ')} and can no longer be changed.`, 'not_modifiable');
+    throw new HttpError(409, `This booking is ${row.status.replace(/_/g, ' ')} and can no longer be changed.`, 'not_modifiable');
   }
   if (!override && !modifiable(row, settings.cancelWindowHours)) {
     throw new HttpError(
@@ -55,7 +57,7 @@ export async function cancelBooking(db, { id, actor, reason = null, override = f
   assertChangeable(row, settings, { override });
 
   const paid = await netPaid(db, id);
-  await db.query('DELETE FROM offer_redemptions WHERE booking_id=$1', [id]); // a cancelled booking gives the offer code back
+  await db.query('DELETE FROM coupon_redemptions WHERE booking_id=$1', [id]); // the coupon returns to the wallet (report Table 17)
   await db.query(
     `UPDATE bookings SET status='cancelled', cancelled_at=now(), cancel_reason=$2, driver_id=NULL, eta_minutes=NULL,
             payment_status=CASE WHEN $3::numeric > 0 THEN 'refunded' ELSE payment_status END, updated_at=now()
@@ -96,41 +98,54 @@ export async function cancelBooking(db, { id, actor, reason = null, override = f
  * Work out what an amendment would do: availability, new price and the difference (US8.2 criterion 2).
  * Does not change anything. `db` is a transaction client when called from amendBooking.
  */
-export async function planAmendment(db, row, input) {
+export async function planAmendment(db, row, input, { override = false } = {}) {
   const settings = await getSettings(db);
-  const j = await prepareJourney(db, {
-    serviceCode: row.service_code, // the service type cannot be changed (see docs/SPRINTS.md assumption 4)
-    pickup: input.pickup,
-    destination: input.destination,
-    pickupAt: input.pickupAt,
-    passengers: input.passengers,
-    hours: input.hours ?? row.hours,
-  });
+  const j = await prepareJourney(
+    db,
+    {
+      serviceCode: row.service_code, // the service type cannot be changed (docs/SPRINTS.md assumption 4)
+      pickup: input.pickup,
+      destination: input.destination,
+      pickupAt: input.pickupAt,
+      passengers: input.passengers,
+      luggage: input.luggage ?? row.luggage,
+      childSeatAges: row.child_seat_ages,
+      pet: row.pet,
+      accessibility: row.accessibility,
+      passengerName: row.passenger_name,
+      passengerPhone: row.passenger_phone,
+      flightNo: row.flight_no,
+      noteToDriver: row.note_to_driver,
+      packageCode: input.packageCode ?? row.package_code ?? undefined,
+      hours: row.package_code ? undefined : (input.hours ?? row.hours),
+    },
+    { settings, forAmend: true },
+  );
+  // ID-63: online, a booking cannot be moved into the next 24 hours either (red-team row 8).
+  if (!override && j.pickupAt.getTime() - Date.now() < settings.cancelWindowHours * 3600_000) {
+    throw badRequest('Please check the highlighted fields', {
+      pickupAt: `Online changes must keep the pickup more than ${settings.cancelWindowHours} hours away. Please call us on 020 7000 0000.`,
+    });
+  }
   const run = db ? db.query.bind(db) : poolQuery;
   const sizes = (await run('SELECT * FROM cab_sizes ORDER BY sort')).rows;
   const size = sizes.find((s) => s.code === input.sizeCode);
   if (!size) throw badRequest('Choose a cab size', { sizeCode: 'Choose a cab size' });
-  if (j.passengers > size.seats) {
-    throw badRequest('Too many passengers for that cab', {
-      passengers: `${size.label} carries up to ${size.seats} passengers.`,
-      sizeCode: 'Choose a bigger cab',
-    });
-  }
+  const misfit = sizeProblems(size, j);
+  if (Object.keys(misfit).length) throw badRequest('That cab is too small', misfit);
 
-  const quote = computeQuote({
-    service: j.service,
-    size: { ...size, multiplier: Number(size.multiplier) },
-    miles: j.distance.miles,
-    hours: j.hours,
-    channel: row.channel, // an online booking keeps its online discount when amended
-    onlineDiscountPct: settings.onlineDiscountPct,
-    offerPct: Number(row.offer_pct) || 0,
+  // An online booking keeps its online discount, and the same coupon amount, when amended.
+  const quote = priceFor(settings, j, size, {
+    channel: row.channel,
+    couponAmount: Number(row.coupon_amount) || 0,
+    couponLabel: row.offer_code ? `Coupon ${row.offer_code}` : undefined,
   });
 
-  const free = await findAvailableCabs(db, { start: j.window.start, end: j.window.end, sizeCode: size.code, excludeBookingId: row.id });
+  const wheelchair = (row.accessibility || []).includes('wheelchair');
+  const free = await findAvailableCabs(db, { start: j.window.start, end: j.window.end, sizeCode: size.code, excludeBookingId: row.id, wheelchair });
   const keepCab = free.find((c) => c.id === row.cab_id) || null;
   const cab = keepCab || free[0] || null;
-  const alternatives = cab ? null : await findAlternatives(db, j, sizes, size.code);
+  const alternatives = cab ? null : await findAlternatives(db, j, sizes, size.code, settings);
 
   return {
     journey: j,
@@ -155,7 +170,7 @@ export async function amendBooking(db, { id, actor, input, override = false }) {
   const settings = await getSettings(db);
   assertChangeable(row, settings, { override });
   await lockCabSize(db, input.sizeCode);
-  const plan = await planAmendment(db, row, input);
+  const plan = await planAmendment(db, row, input, { override });
   if (!plan.available) {
     throw new HttpError(409, `No ${plan.size.label} is free at that time. Pick another time or a different cab size.`, 'no_availability').withExtra({
       alternatives: plan.alternatives,
@@ -179,13 +194,16 @@ export async function amendBooking(db, { id, actor, input, override = false }) {
   await db.query(
     `UPDATE bookings SET pickup=$2, destination=$3, distance_miles=$4, hours=$5, pickup_at=$6, end_at=$7, passengers=$8,
             size_code=$9, cab_id=$10, driver_id=$11, status=$12, price_full=$13, discount_online=$14, discount_offer=$15,
-            total=$16, amended_at=now(), amend_count=amend_count+1, updated_at=now()
+            total=$16, surcharge_total=$17, price_lines=$18, luggage=$19, package_code=$20,
+            amended_at=now(), amend_count=amend_count+1, updated_at=now()
       WHERE id=$1`,
     [
       id, j.pickup, j.destination, j.distance.miles, j.hours, j.pickupAt, j.window.end, j.passengers, plan.size.code,
       plan.cab.id, driverId, status, plan.quote.full, plan.quote.discountOnline, plan.quote.discountOffer, plan.quote.total,
+      plan.quote.surcharge, JSON.stringify(plan.quote.lines), j.luggage, j.pkg?.code || null,
     ],
   );
+  await recordDiscounts(db, id, plan.quote);
 
   // Settle the price difference against the original payment method (simulated)
   let settlement = null;

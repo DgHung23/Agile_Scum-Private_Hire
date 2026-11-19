@@ -52,19 +52,48 @@ export function londonToIso(date, time) {
 
 export const todayLondon = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
 
+// Booking states (report Figure 25).
 export const STATUS_LABEL = {
+  pending_payment: 'Waiting for payment',
   confirmed: 'Confirmed',
   assigned: 'Driver assigned',
   on_route: 'On route',
+  arrived: 'Arrived',
+  in_progress: 'In progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
+  company_cancelled: 'Cancelled by us',
+  no_show: 'No-show',
+  interrupted: 'Interrupted',
+  abandoned: 'Not paid',
 };
 export const STATUS_TONE = {
+  pending_payment: 'amber',
   confirmed: 'blue',
   assigned: 'blue',
   on_route: 'amber',
+  arrived: 'amber',
+  in_progress: 'amber',
   completed: 'green',
   cancelled: 'red',
+  company_cancelled: 'red',
+  no_show: 'red',
+  interrupted: 'red',
+  abandoned: '',
+};
+export const ACCESSIBILITY_LABEL = {
+  wheelchair: 'Wheelchair-accessible vehicle',
+  assistance_dog: 'Assistance dog',
+  help_find_car: 'Help to find the car',
+};
+export const PAYMENT_STATUS_LABEL = {
+  pending: 'Waiting for payment',
+  paid: 'Paid',
+  due_cash: 'Cash to the driver',
+  invoice: 'Company invoice',
+  unpaid: 'Not paid',
+  refunded: 'Refunded',
+  partially_refunded: 'Partly refunded',
 };
 export const CHANNEL_LABEL = { online: 'Online', phone: 'Phone', in_person: 'In person' };
 

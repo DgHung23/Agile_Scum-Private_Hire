@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
-import { fmtDate, fmtDateTime, fmtTime, money } from '../format.js';
+import { PAYMENT_STATUS_LABEL, fmtDate, fmtDateTime, fmtTime, money } from '../format.js';
 import { Alert, Empty, Kv, Loading, Modal, PageHeader, StatusBadge, TextArea, useLoad, useToast } from '../ui.jsx';
-import { BookingCard, PriceBreakdown, RouteLine } from '../components/BookingBits.jsx';
+import { BookingCard, BookingExtras, PriceBreakdown, RouteLine } from '../components/BookingBits.jsx';
+import Checkout from '../components/Checkout.jsx';
 import { ReviewForm, ReviewSummary } from '../components/ReviewForm.jsx';
 
 export function Trips() {
@@ -33,12 +34,23 @@ export function Trips() {
   );
 }
 
+// Report Figure 25: the normal path of a booking.
 const STAGES = [
   ['confirmed', 'Booking confirmed'],
   ['assigned', 'Driver assigned'],
   ['on_route', 'Driver on the way'],
+  ['arrived', 'Driver has arrived'],
+  ['in_progress', 'On the journey'],
   ['completed', 'Journey completed'],
 ];
+const ENDED = ['cancelled', 'company_cancelled', 'no_show', 'abandoned'];
+
+/** N25: book the same journey again (new date and time). */
+export function rebookLink(b) {
+  const q = new URLSearchParams({ service: b.service.code, pickup: b.pickup, passengers: String(b.passengers), size: b.size.code });
+  if (b.service.code !== 'daily_hire') q.set('destination', b.destination);
+  return `/book?${q}`;
+}
 
 function Timeline({ status }) {
   const idx = Math.max(0, STAGES.findIndex(([k]) => k === status));
@@ -108,7 +120,8 @@ export function TripDetail() {
   if (loading) return <div className="container page"><Loading /></div>;
   if (error) return <div className="container page"><div className="medium"><Alert tone="error">{error.message}</Alert><p style={{ marginTop: 16 }}><Link to="/trips" className="btn btn-subtle">Back to my trips</Link></p></div></div>;
   const b = data.booking;
-  const cancelled = b.status === 'cancelled';
+  const cancelled = ENDED.includes(b.status);
+  const pending = b.status === 'pending_payment';
   return (
     <div className="container page">
       <div className="medium stack-lg">
@@ -118,6 +131,17 @@ export function TripDetail() {
             <strong>You are booked.</strong> Your reference is <span className="mono strong">{b.ref}</span>. We have emailed the details - see{' '}
             <Link to="/messages" className="strong">Messages</Link>.
           </Alert>
+        )}
+        {pending && (
+          <Alert tone="warn" icon="clock">
+            <div className="row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+              <span>This booking is waiting for payment. We hold the cab until {fmtTime(b.holdExpiresAt)}.</span>
+              <Link to={`/trips/${b.id}/pay`} className="btn btn-sm">Complete payment</Link>
+            </div>
+          </Alert>
+        )}
+        {b.status === 'interrupted' && (
+          <Alert tone="error" icon="alert">Your journey was interrupted. We are sending a replacement car and will text you its details. Your fare will not go up.</Alert>
         )}
         <div className="row-between" style={{ alignItems: 'flex-start' }}>
           <div>
@@ -130,7 +154,7 @@ export function TripDetail() {
           </div>
         </div>
 
-        {!cancelled && (
+        {!cancelled && !pending && b.status !== 'interrupted' && (
           <section className="card stack">
             <h3>Progress</h3>
             <Timeline status={b.status} />
@@ -143,7 +167,21 @@ export function TripDetail() {
             <div className="row" style={{ gap: 24 }}>
               <div><div className="tiny" style={{ color: '#c9c9c9' }}>Registration</div><div className="mono strong" style={{ fontSize: 24 }}>{b.vehicle.reg}</div></div>
               <div><div className="tiny" style={{ color: '#c9c9c9' }}>Car</div><div className="strong">{b.vehicle.colour} {b.vehicle.make} {b.vehicle.model}</div></div>
-              {b.driver && <div><div className="tiny" style={{ color: '#c9c9c9' }}>Driver</div><div className="strong">{b.driver.name}</div></div>}
+              {b.driver && (
+                <div className="row" style={{ gap: 12 }}>
+                  {b.driver.photoUrl ? (
+                    <img src={b.driver.photoUrl} alt={`Driver ${b.driver.name}`} width="48" height="48" style={{ borderRadius: 999, objectFit: 'cover' }} />
+                  ) : (
+                    <span className="avatar" aria-hidden="true">{b.driver.name[0]}</span>
+                  )}
+                  <div>
+                    <div className="tiny" style={{ color: '#c9c9c9' }}>Driver</div>
+                    <div className="strong">{b.driver.name}</div>
+                    {b.driver.licenceNo && <div className="tiny" style={{ color: '#c9c9c9' }}>Licence {b.driver.licenceNo}</div>}
+                  </div>
+                </div>
+              )}
+              {b.etaMinutes != null && b.status === 'on_route' && <div><div className="tiny" style={{ color: '#c9c9c9' }}>Arriving in</div><div className="strong">about {b.etaMinutes} min</div></div>}
             </div>
             <p className="small muted">Check the registration matches before you get in.</p>
           </section>
@@ -156,7 +194,14 @@ export function TripDetail() {
           <Kv k="Date and time" v={fmtDateTime(b.pickupAt)} />
           <Kv k="Passengers" v={b.passengers} />
           <Kv k="Cab size" v={b.size.label} />
-          {b.hours && <Kv k="Hire length" v={`${b.hours} hours`} />}
+          {b.package ? <Kv k="Package" v={b.package.label} /> : b.hours && <Kv k="Hire length" v={`${b.hours} hours`} />}
+          <BookingExtras b={b} />
+          {data.linked?.map((l) => (
+            <p key={l.id} className="small">
+              <Icon name="route" size={14} /> {l.isReturn ? 'Return journey' : 'Outward journey'}{' '}
+              <Link to={`/trips/${l.id}`} className="strong">{l.ref}</Link> on {fmtDateTime(l.pickupAt)}
+            </p>
+          ))}
           <Kv k="Updates by" v={{ email: 'Email', text: `Text (${b.notifyPhone || ''})`, both: `Email and text (${b.notifyPhone || ''})` }[b.notifyPref]} />
         </section>
 
@@ -165,16 +210,22 @@ export function TripDetail() {
           <PriceBreakdown price={b.price} />
           {data.payments.map((p) => (
             <div key={p.id} className="small muted">
-              {p.kind === 'refund' ? 'Refunded' : 'Paid'} {money(p.amount)} by {p.method === 'card' ? `${p.cardBrandLabel} ending ${p.cardLast4}` : p.method === 'paypal' ? 'PayPal' : 'cash'} on {fmtDate(p.createdAt)}
+              {p.kind === 'refund' ? 'Refunded' : 'Paid'} {money(p.amount)} by {p.method === 'card' ? `${p.cardBrandLabel} ending ${p.cardLast4}` : p.method === 'paypal' ? 'PayPal' : p.method === 'bank' ? `bank transfer${p.bankName ? ` (${p.bankName})` : ''}` : 'cash'} on {fmtDate(p.createdAt)}
             </div>
           ))}
+          {b.paymentStatus && b.paymentStatus !== 'paid' && <p className="small"><span className="badge">{PAYMENT_STATUS_LABEL[b.paymentStatus] || b.paymentStatus}</span></p>}
           {data.payments.length > 0 && (
             <div><Link to={`/trips/${b.id}/receipt`} className="btn btn-secondary btn-sm"><Icon name="file" size={16} /> View and print receipt</Link></div>
           )}
           {b.priority && <p className="small muted"><Icon name="zap" size={14} /> Priority service: online bookings are dispatched first.</p>}
         </section>
 
-        <p className="small"><Link to={`/contact?booking=${b.id}`} className="strong"><Icon name="message" size={14} /> Ask us about this trip</Link></p>
+        <div className="row small" style={{ gap: 16 }}>
+          <Link to={`/contact?booking=${b.id}`} className="strong"><Icon name="message" size={14} /> Ask us about this trip</Link>
+          {['completed', 'cancelled', 'company_cancelled', 'no_show'].includes(b.status) && (
+            <Link to={rebookLink(b)} className="strong"><Icon name="route" size={14} /> Book this journey again</Link>
+          )}
+        </div>
         {b.status === 'completed' && (
           <section className="card stack">
             <h3>{data.review ? 'Your review' : 'How was your journey?'}</h3>
@@ -182,9 +233,12 @@ export function TripDetail() {
           </section>
         )}
         {cancelled && (
-          <Alert tone="warn" icon="alert">This booking was cancelled{b.cancelledAt ? ` on ${fmtDate(b.cancelledAt)}` : ''}. {data.payments.some((p) => p.kind === 'refund') ? 'Your refund has been issued.' : ''}</Alert>
+          <Alert tone="warn" icon="alert">
+            {b.status === 'abandoned' ? 'This booking was not paid, so the cab was released.' : b.status === 'no_show' ? 'This booking was recorded as a no-show.' : `This booking was cancelled${b.cancelledAt ? ` on ${fmtDate(b.cancelledAt)}` : ''}${b.status === 'company_cancelled' ? ' by us. We are sorry.' : '.'}`}{' '}
+            {data.payments.some((p) => p.kind === 'refund') ? 'Your refund has been issued.' : ''}
+          </Alert>
         )}
-        {!cancelled && b.status !== 'completed' && (
+        {!cancelled && !pending && ['confirmed', 'assigned'].includes(b.status) && (
           <section className="card stack">
             <h3>Change or cancel</h3>
             {b.modifiable ? (
@@ -214,6 +268,39 @@ export function TripDetail() {
             toast(r.refund ? `Booking cancelled. ${money(r.refund.amount)} refunded.` : 'Booking cancelled.', 'success');
             reload();
           }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** ID-54: finish paying for a booking that is waiting for payment (retry, or back from PayPal / the bank). */
+export function PayPending() {
+  const { id } = useParams();
+  const loc = useLocation();
+  const nav = useNavigate();
+  const [redirectResult] = useState(() => loc.state?.redirect || null);
+  const { data, loading, error } = useLoad(() => api.get(`/bookings/${id}`), [id]);
+  if (loading) return <div className="container page"><Loading /></div>;
+  if (error) return <div className="container page"><Alert tone="error">{error.message}</Alert></div>;
+  const b = data.booking;
+  const done = (r) => nav(`/trips/${r.booking.id}`, { replace: true, state: { justBooked: true } });
+  const total = b.price.total + (data.linked || []).filter((l) => l.status === 'pending_payment').reduce((a, l) => a + l.total, 0);
+  return (
+    <div className="container page">
+      <div className="medium stack-lg">
+        <div><Link to={`/trips/${b.id}`} className="small strong">&larr; Back to the booking</Link></div>
+        <PageHeader title="Complete payment" sub={`${b.ref} - ${fmtDateTime(b.pickupAt)}`} />
+        {b.status !== 'pending_payment' && !redirectResult ? (
+          <Alert tone="info">This booking is not waiting for payment. <Link to={`/trips/${b.id}`} className="strong">View it</Link></Alert>
+        ) : (
+          <>
+            <section className="card stack">
+              <RouteLine pickup={b.pickup} destination={b.destination} />
+              <PriceBreakdown price={b.price} />
+            </section>
+            <Checkout amount={total} pendingId={b.id} holdUntil={b.holdExpiresAt} onDone={done} returnTo={`/trips/${b.id}/pay`} redirectResult={redirectResult} create={() => Promise.reject(new Error('unused'))} />
+          </>
         )}
       </div>
     </div>

@@ -113,7 +113,7 @@ test('US9.5 staff booking: no 15% discount, channel recorded, not priority, cust
   assert.equal(b.price.discountOnline, 0);
   assert.equal(b.price.total, b.price.full);
   assert.equal(b.priority, false);
-  assert.equal(b.paymentStatus, 'unpaid');
+  assert.equal(b.paymentStatus, 'due_cash', 'no payment taken: the customer pays the driver');
   assert.equal(b.customer.email, 'customer@privatehire.test');
   const created = await t.pool.query('SELECT created_by FROM bookings WHERE id=$1', [b.id]);
   assert.ok(created.rows[0].created_by);
@@ -146,9 +146,12 @@ test('US9.5 in-person booking paid in cash is recorded as paid; card payment wor
 });
 
 test('US9.5 same checks as online: availability, validation, passenger limits', async () => {
-  const bad = await t.call('POST', '/staff/bookings', { token: staff, body: { ...journey({ pickup: 'Camden Town', destination: 'camden town', passengers: 9 }), customerId } });
+  const bad = await t.call('POST', '/staff/bookings', { token: staff, body: { ...journey({ pickup: 'Camden Town', destination: 'camden town' }), customerId } });
   assert.equal(bad.status, 400);
   assert.ok(bad.body.error.fields.destination);
+  const nine = await t.call('POST', '/staff/bookings', { token: staff, body: { ...journey({ passengers: 9 }), customerId } });
+  assert.equal(nine.status, 400);
+  assert.ok(nine.body.error.fields.passengers, 'ID-30: 1 to 8 passengers');
   const tooMany = await t.call('POST', '/staff/bookings', { token: staff, body: { ...journey({ passengers: 6 }), customerId } });
   assert.equal(tooMany.status, 400);
   const noChannel = await t.call('POST', '/staff/bookings', { token: staff, body: { ...journey({ channel: 'online' }), customerId } });

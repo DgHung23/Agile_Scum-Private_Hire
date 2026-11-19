@@ -5,7 +5,7 @@ import { Icon } from '../icons.jsx';
 import { BookingCard } from '../components/BookingBits.jsx';
 import { Empty, Loading, PageHeader, useLoad } from '../ui.jsx';
 import { VerifyBanner } from './Account.jsx';
-import { fmtDate } from '../format.js';
+import { money, fmtDate } from '../format.js';
 
 /** Customer home. Offers are added in Sprint 3. */
 export default function Dashboard() {
@@ -38,11 +38,11 @@ export default function Dashboard() {
 
         {offers.data?.offers.length > 0 && (
           <section className="stack">
-            <h3>Your offers</h3>
+            <h3>My coupons</h3>
             <div className="grid grid-3">
               {offers.data.offers.map((o) => (
                 <div key={o.id} className="card card-soft stack-sm">
-                  <div className="row-between"><span className="badge black"><Icon name="gift" size={12} /> {o.discountPct}% off</span><span className="tiny">Until {fmtDate(o.expiresAt)}</span></div>
+                  <div className="row-between"><span className="badge black"><Icon name="gift" size={12} /> {money(o.amount)} off</span><span className="tiny">Until {fmtDate(o.expiresAt)}</span></div>
                   <div className="strong">{o.title}</div>
                   <div className="small muted">Code <span className="kbd">{o.code}</span> - enter it when you review your booking.</div>
                   <Link to="/book" className="btn btn-sm" style={{ alignSelf: 'flex-start' }}>Book now</Link>

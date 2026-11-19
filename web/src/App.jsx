@@ -9,10 +9,11 @@ import Account from './pages/Account.jsx';
 import Messages from './pages/Messages.jsx';
 import Book from './pages/Book.jsx';
 import Services from './pages/Services.jsx';
-import { TripDetail, Trips } from './pages/Trips.jsx';
+import { PayPending, TripDetail, Trips } from './pages/Trips.jsx';
 import Receipt from './pages/Receipt.jsx';
 import Amend from './pages/Amend.jsx';
-import PayPalMock from './pages/PayPalMock.jsx';
+import ProviderMock from './pages/PayPalMock.jsx';
+import Terms from './pages/Terms.jsx';
 import StaffHome, { StaffOutbox } from './pages/staff/StaffHome.jsx';
 import { StaffDrivers, StaffFleet } from './pages/staff/Fleet.jsx';
 import { CallDesk, CallDeskCustomer, NewCaller } from './pages/staff/CallDesk.jsx';
@@ -25,6 +26,7 @@ import StaffOffers from './pages/staff/Offers.jsx';
 import StaffReports from './pages/staff/Reports.jsx';
 import Contact from './pages/Contact.jsx';
 import { AuditLog, Settings, StaffAccounts } from './pages/staff/Admin.jsx';
+import Pricing from './pages/staff/Pricing.jsx';
 
 const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
 const only = (roles, el) => <RequireAuth roles={roles}>{el}</RequireAuth>;
@@ -49,7 +51,9 @@ export default function App() {
         <Route path="trips/:id" element={customer(<TripDetail />)} />
         <Route path="trips/:id/amend" element={customer(<Amend />)} />
         <Route path="trips/:id/receipt" element={customer(<Receipt />)} />
-        <Route path="paypal-mock" element={customer(<PayPalMock />)} />
+        <Route path="pay/provider" element={customer(<ProviderMock />)} />
+        <Route path="trips/:id/pay" element={customer(<PayPending />)} />
+        <Route path="terms" element={<Terms />} />
         <Route path="dashboard" element={customer(<Dashboard />)} />
         <Route path="account" element={customer(<Account />)} />
         <Route path="messages" element={customer(<Messages />)} />
@@ -72,6 +76,7 @@ export default function App() {
         <Route path="enquiries" element={only(DESK, <StaffEnquiries />)} />
         <Route path="reviews" element={only(DESK, <StaffReviews />)} />
         <Route path="offers" element={only(['manager'], <StaffOffers />)} />
+        <Route path="pricing" element={only(['manager'], <Pricing />)} />
         <Route path="reports" element={only(['manager'], <StaffReports />)} />
         <Route path="availability" element={only(DESK, <StaffAvailability />)} />
         <Route path="fleet" element={only(DESK, <StaffFleet />)} />

@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import crypto from 'node:crypto';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { customerOnly } from '../middleware/auth.js';
 import { body, wrap } from '../middleware/validate.js';
-import { notFound } from '../errors.js';
+import { badRequest, notFound } from '../errors.js';
 import { cardInputSchema, createSavedCard, serializeCard } from '../services/payments.js';
 import { emailSchema } from '../schemas.js';
+import { BANKS } from '../services/checkout.js';
 
 export const router = Router();
 router.use(...customerOnly);
@@ -41,48 +41,43 @@ router.delete(
   }),
 );
 
-/* ---------- simulated PayPal (US5.4) ---------- */
-
-router.post(
-  '/paypal/start',
-  body(z.object({ amount: z.coerce.number().positive('Amount must be more than zero').max(5000) })),
-  wrap(async (req, res) => {
-    const token = 'PPTOK-' + crypto.randomBytes(8).toString('hex');
-    await query('INSERT INTO paypal_sessions (token, user_id, amount) VALUES ($1,$2,$3)', [token, req.user.id, req.body.amount]);
-    res.status(201).json({ token, amount: req.body.amount });
-  }),
-);
+/* ---------- simulated PayPal (ID-55) and pay by bank (ID-57) ---------- */
+// The booking API creates the session (POST /bookings with method paypal or bank). These endpoints are what the
+// simulated provider page uses: read the amount, approve or cancel. The customer then returns to the booking.
 
 async function ownSession(req) {
-  const { rows } = await query('SELECT * FROM paypal_sessions WHERE token=$1 AND user_id=$2', [req.params.token, req.user.id]);
-  if (!rows[0]) throw notFound('PayPal session not found');
+  const { rows } = await query('SELECT * FROM redirect_sessions WHERE token=$1 AND user_id=$2', [req.params.token, req.user.id]);
+  if (!rows[0]) throw notFound('Payment session not found');
   return rows[0];
 }
 
 router.get(
-  '/paypal/:token',
+  '/redirect/:token',
   wrap(async (req, res) => {
     const s = await ownSession(req);
-    res.json({ token: s.token, amount: s.amount, status: s.status });
+    const b = (await query('SELECT id, ref FROM bookings WHERE group_id=$1 ORDER BY pickup_at LIMIT 1', [s.group_id])).rows[0];
+    res.json({ token: s.token, provider: s.provider, amount: s.amount, status: s.status, bookingId: b?.id, ref: b?.ref, banks: BANKS });
   }),
 );
 
 router.post(
-  '/paypal/:token/approve',
-  body(z.object({ email: emailSchema })),
+  '/redirect/:token/approve',
+  body(z.object({ email: emailSchema.optional(), bankName: z.enum(BANKS).optional() })),
   wrap(async (req, res) => {
     const s = await ownSession(req);
-    if (s.status === 'used') throw notFound('This PayPal payment has already been used');
-    await query("UPDATE paypal_sessions SET status='approved', payer_email=$2 WHERE token=$1", [s.token, req.body.email]);
+    if (s.status === 'used') throw notFound('This payment has already been used');
+    if (s.provider === 'paypal' && !req.body.email) throw badRequest('Enter your PayPal email', { email: 'Enter your PayPal email' });
+    if (s.provider === 'bank' && !req.body.bankName) throw badRequest('Choose your bank', { bankName: 'Choose your bank' });
+    await query("UPDATE redirect_sessions SET status='approved', payer_email=$2, bank_name=$3 WHERE token=$1", [s.token, req.body.email || null, req.body.bankName || null]);
     res.json({ token: s.token, status: 'approved' });
   }),
 );
 
 router.post(
-  '/paypal/:token/cancel',
+  '/redirect/:token/cancel',
   wrap(async (req, res) => {
     const s = await ownSession(req);
-    if (s.status !== 'used') await query("UPDATE paypal_sessions SET status='cancelled' WHERE token=$1", [s.token]);
+    if (s.status !== 'used') await query("UPDATE redirect_sessions SET status='cancelled' WHERE token=$1", [s.token]);
     res.json({ token: s.token, status: 'cancelled' });
   }),
 );
