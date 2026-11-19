@@ -12,7 +12,7 @@ function Bars({ rows, label, value, format = (v) => v, unit }) {
         <div key={label(r)} role="listitem" style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 160px) 1fr auto', gap: 10, alignItems: 'center' }}>
           <span className="small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label(r)}>{label(r)}</span>
           <div style={{ background: 'var(--soft)', borderRadius: 999, height: 14 }}>
-            <div style={{ width: `${(r[value] / max) * 100}%`, background: 'var(--ink)', height: '100%', borderRadius: 999, minWidth: r[value] ? 6 : 0 }} />
+            <div style={{ width: `${(r[value] / max) * 100}%`, background: 'var(--primary)', height: '100%', borderRadius: 999, minWidth: r[value] ? 6 : 0 }} />
           </div>
           <span className="small strong mono" style={{ minWidth: 64, textAlign: 'right' }}>{format(r[value])}{unit || ''}</span>
         </div>
