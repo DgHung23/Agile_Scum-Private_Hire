@@ -207,12 +207,15 @@ router.get(
       )
     ).rows[0];
     const enquiries = (await query("SELECT count(*)::int AS n FROM enquiries WHERE status='new'")).rows[0].n;
+    // ID-44: failed messages are shown to staff; N20/N22: open incidents need attention first.
+    const failedMessages = (await query("SELECT count(*)::int AS n FROM notifications WHERE status='failed' AND created_at > now() - interval '7 days'")).rows[0].n;
+    const openIncidents = (await query("SELECT count(*)::int AS n FROM incidents WHERE status='open'")).rows[0].n;
     const { rows } = await query(
       `SELECT id FROM bookings WHERE status IN ('confirmed','assigned') AND end_at >= now()
         ORDER BY priority DESC, pickup_at ASC LIMIT 6`,
     );
     const next = [];
     for (const r of rows) next.push(serializeBooking(await loadBookingRow(null, r.id), { cancelWindowHours: settings.cancelWindowHours, forStaff: true }));
-    res.json({ stats: { today: stats.today, needsDriver: stats.needs_driver, onRoute: stats.on_route, priorityOpen: stats.priority_open, newEnquiries: enquiries }, next });
+    res.json({ stats: { today: stats.today, needsDriver: stats.needs_driver, onRoute: stats.on_route, priorityOpen: stats.priority_open, newEnquiries: enquiries, failedMessages, openIncidents }, next });
   }),
 );

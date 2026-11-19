@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { HttpError, badRequest } from '../errors.js';
 import { bookingConfirmationEmail, loadBookingRow } from './booking.js';
 import { sendEmail } from './notify.js';
+import { issueAndSend } from './receipts.js';
 import {
   cardInputSchema,
   createSavedCard,
@@ -61,6 +62,7 @@ async function confirmGroup(db, rows, customer, paymentFields) {
       ],
     );
     payments.push(pr[0]);
+    await issueAndSend(db, pr[0]); // FR-6.1, FR-6.6: the receipt is created once and emailed automatically
     await db.query(
       "UPDATE bookings SET status='confirmed', payment_status='paid', hold_expires_at=NULL, updated_at=now() WHERE id=$1",
       [b.id],

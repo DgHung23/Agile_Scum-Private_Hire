@@ -9,6 +9,7 @@ import { availabilityBySize, expireHolds } from '../services/availability.js';
 import { cancelBooking, amendBooking, planAmendment } from '../services/changes.js';
 import { serializePayment, describeMethod } from '../services/payments.js';
 import { abandonGroup, beginPayment, complete3ds, completeRedirect, paymentSchema } from '../services/checkout.js';
+import { loadReceiptDoc, serializeReceiptDoc } from '../services/receipts.js';
 import {
   createBooking,
   getSettings,
@@ -41,6 +42,15 @@ export async function buildReceipt(row, customer) {
     totalRefunded: Math.round(refunded * 100) / 100,
     netPaid: Math.round((paid - refunded) * 100) / 100,
   };
+}
+
+/** The booking's receipt (FR-6.1) with its PDF, send log and linked credit notes, plus the payment totals. */
+async function bookingReceipt(row, customer) {
+  const legacy = await buildReceipt(row, customer);
+  const { rows } = await query("SELECT id FROM receipts WHERE booking_id=$1 AND kind='receipt' ORDER BY created_at LIMIT 1", [row.id]);
+  if (!rows[0]) return { ...legacy, id: null };
+  const doc = serializeReceiptDoc(await loadReceiptDoc(null, rows[0].id));
+  return { ...legacy, ...doc, receiptNo: doc.number, issuedAt: doc.createdAt, payments: legacy.payments, price: legacy.price };
 }
 
 const optionalText = (max) => z.string().trim().max(max).optional().or(z.literal('').transform(() => undefined));
@@ -313,7 +323,7 @@ router.get(
     if (!z.string().uuid().safeParse(req.params.id).success) throw notFound('Booking not found');
     const row = await loadBookingRow(null, req.params.id);
     if (!row || row.customer_id !== req.user.id) throw notFound('Booking not found');
-    res.json({ receipt: await buildReceipt(row, req.user) });
+    res.json({ receipt: await bookingReceipt(row, req.user) });
   }),
 );
 

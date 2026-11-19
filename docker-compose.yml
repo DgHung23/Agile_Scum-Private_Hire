@@ -21,6 +21,18 @@ services:
       timeout: 3s
       retries: 10
 
+  # Test email inbox (report Appendix K: "Mailpit test inbox in Docker for demonstrations").
+  # Every email the system sends (confirmations, receipts with the PDF attached) lands here: http://localhost:8025
+  # Local dev: docker compose --profile mail up -d mail, then set SMTP_HOST=localhost in server/.env
+  mail:
+    profiles: ["mail", "full"]
+    image: axllent/mailpit:v1.21
+    container_name: privatehire-mail
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # web inbox
+      - "1025:1025" # SMTP
+
   # Full stack in one container (API + built web app). Start with:  docker compose --profile full up --build
   app:
     profiles: ["full"]
@@ -35,6 +47,8 @@ services:
       NODE_ENV: production
       SEED_ON_START: "demo"
       PUBLIC_URL: http://localhost:4000
+      SMTP_HOST: mail
+      SMTP_PORT: "1025"
     ports:
       - "4000:4000"
 

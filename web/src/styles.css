@@ -1321,6 +1321,7 @@ hr.sep {
 }
 @media print {
   .navbar,
+  .staff-nav,
   .footer,
   .no-print,
   .bottom-bar,
@@ -1337,4 +1338,33 @@ hr.sep {
   body {
     background: #fff;
   }
+}
+
+/* receipt: refunded mark (prints in black and white) */
+.stamp {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--primary-hover);
+  transform: rotate(-4deg);
+}
+@media print {
+  .stamp {
+    color: #000;
+  }
+}
+
+/* icons inside a line of text stay on that line */
+a:not(.btn):not(.chip):not(.nav-link) > svg,
+p > svg,
+.small > svg,
+.tiny > svg,
+.strong > svg {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
 }

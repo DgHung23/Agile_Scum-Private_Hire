@@ -89,7 +89,7 @@ async function verifiedBy(staffId, customerId) {
   return rows[0] || null;
 }
 
-async function requireVerified(req, customerId) {
+export async function requireVerified(req, customerId) {
   if (!(await verifiedBy(req.user.id, customerId))) {
     throw new HttpError(403, 'Verify the caller before opening this account.', 'not_verified');
   }

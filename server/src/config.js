@@ -14,6 +14,10 @@ export const config = {
   // Set FORCE_HTTPS=true only when the app is served behind HTTPS (enables HSTS and upgrade-insecure-requests).
   // Left off by default so phones can test over plain http on the local network.
   forceHttps: env.FORCE_HTTPS === 'true',
+  // Email delivery (ID-44): set SMTP_HOST to send through an SMTP server (Mailpit in docker-compose); empty = simulated.
+  smtpHost: env.SMTP_HOST || '',
+  smtpPort: Number(env.SMTP_PORT || 1025),
+  mailFrom: env.MAIL_FROM || 'Private Hire Cars <bookings@privatehire.example>',
 };
 
 // Sessions are server-side (table `sessions`), so no signing secret is needed.

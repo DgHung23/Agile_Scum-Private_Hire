@@ -10,6 +10,7 @@ import { badRequest, HttpError, notFound } from '../errors.js';
 import { emailSchema, passwordSchema, phoneSchema } from '../schemas.js';
 import { audit } from '../services/audit.js';
 import { sendEmail } from '../services/notify.js';
+import { JOBS } from '../jobs.js';
 
 /**
  * Admin (system administrator): staff accounts and roles (N01), audit log (N03), settings (N04).
@@ -112,6 +113,19 @@ router.patch(
       return rows[0];
     });
     res.json({ user: { ...serializeUser(user), isActive: user.is_active } });
+  }),
+);
+
+/* ---------- background jobs, run on demand (demo and support) ---------- */
+
+router.post(
+  '/jobs/:name',
+  wrap(async (req, res) => {
+    const job = JOBS[req.params.name];
+    if (!job) throw notFound('No such job');
+    const done = await job();
+    await audit(null, req, 'job.run', 'job', req.params.name, { done });
+    res.json({ job: req.params.name, done });
   }),
 );
 

@@ -1,9 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth.jsx';
 import { api, qs } from '../../api.js';
 import { Icon } from '../../icons.jsx';
 import { fmtShort } from '../../format.js';
-import { Alert, Empty, Loading, PageHeader, StatusBadge, useLoad } from '../../ui.jsx';
+import { Alert, Empty, Loading, PageHeader, StatusBadge, useLoad, useToast } from '../../ui.jsx';
 import { MessageCard } from '../Messages.jsx';
 
 function Stat({ n, label, to, tone }) {
@@ -33,6 +33,7 @@ export default function StaffHome() {
             <Stat n={data.stats.onRoute} label="On route now" to="/staff/dispatch" />
             <Stat n={data.stats.newEnquiries} label="New enquiries" to="/staff/enquiries" tone="alert" />
           </div>
+          {(data.stats.openIncidents > 0 || data.stats.failedMessages > 0) && <Alerts stats={data.stats} />}
           <section className="stack">
             <div className="row-between">
               <h3>Next up</h3>
@@ -64,11 +65,51 @@ export default function StaffHome() {
   );
 }
 
+/** N20, N22 open incidents first; ID-44 messages that failed after 3 tries. */
+function Alerts({ stats }) {
+  const toast = useToast();
+  const { data, reload } = useLoad(() => api.get('/staff/incidents'));
+  const open = (data?.incidents || []).filter((i) => i.status === 'open');
+  const handle = async (i) => {
+    await api.post(`/staff/incidents/${i.id}/handle`);
+    toast('Marked as handled', 'success');
+    reload();
+  };
+  return (
+    <section className="stack">
+      {open.map((i) => (
+        <Alert key={i.id} tone={i.kind === 'emergency' ? 'error' : 'warn'} icon="alert">
+          <div className="row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+            <span>
+              <strong>{i.kind === 'emergency' ? 'EMERGENCY' : 'Problem with journey'}</strong> on <span className="mono">{i.booking.ref}</span>
+              {i.reporter && <> - {i.reporter.name}, <a href={`tel:${i.reporter.phone}`}>{i.reporter.phone}</a></>}
+              {i.message && <> - "{i.message}"</>} ({fmtShort(i.createdAt)})
+            </span>
+            <button className="btn btn-sm btn-secondary" onClick={() => handle(i)}>Mark handled</button>
+          </div>
+        </Alert>
+      ))}
+      {stats.failedMessages > 0 && (
+        <Alert tone="warn">
+          {stats.failedMessages} message{stats.failedMessages === 1 ? '' : 's'} could not be delivered after 3 tries this week.{' '}
+          <Link to="/staff/outbox?status=failed" className="strong">See failed messages</Link>
+        </Alert>
+      )}
+    </section>
+  );
+}
+
 export function StaffOutbox() {
-  const { data, loading, error } = useLoad(() => api.get('/notifications' + qs({ scope: 'all', limit: 100 })));
+  const [params] = useSearchParams();
+  const status = params.get('status') || '';
+  const { data, loading, error } = useLoad(() => api.get('/notifications' + qs({ scope: 'all', limit: 100, status })), [status]);
   return (
     <div className="stack-lg">
-      <PageHeader title="Outbox" sub="Every simulated email and text message sent by the system." />
+      <PageHeader title="Outbox" sub="Every email and text message sent by the system, with its delivery result."
+        actions={<div className="chips">
+          <Link to="/staff/outbox" className={`chip ${!status ? 'active' : ''}`}>All</Link>
+          <Link to="/staff/outbox?status=failed" className={`chip ${status === 'failed' ? 'active' : ''}`}>Failed</Link>
+        </div>} />
       {loading && <Loading />}
       {error && <Alert tone="error">{error.message}</Alert>}
       {data && data.notifications.length === 0 && <Empty title="Nothing sent yet" />}

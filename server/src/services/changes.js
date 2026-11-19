@@ -15,6 +15,7 @@ import {
 } from './booking.js';
 import { sendEmail } from './notify.js';
 import { describeMethod, refundPayment } from './payments.js';
+import { issueAndSend } from './receipts.js';
 
 const gbp = (n) => `GBP ${Number(n).toFixed(2)}`;
 const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -70,6 +71,7 @@ export async function cancelBooking(db, { id, actor, reason = null, override = f
     amount: paid,
     note: `Cancellation of ${row.ref}${actor.role !== 'customer' ? ' by staff' : ''}`,
   });
+  if (refund) await issueAndSend(db, refund); // FR-6.8: a credit note joins the receipt history
 
   const lines = [
     `Hello ${row.customer_name},`,
@@ -221,9 +223,11 @@ export async function amendBooking(db, { id, actor, input, override = false }) {
           'AM-' + crypto.randomBytes(5).toString('hex').toUpperCase(), `Amendment of ${row.ref}`],
       );
       settlement = ins.rows[0];
+      await issueAndSend(db, settlement);
     }
   } else if (plan.difference < 0) {
     settlement = await refundPayment(db, { bookingId: id, userId: row.customer_id, amount: Math.abs(plan.difference), note: `Amendment of ${row.ref}` });
+    if (settlement) await issueAndSend(db, settlement);
   }
   await db.query(
     `UPDATE bookings SET payment_status = CASE WHEN (SELECT COALESCE(SUM(CASE WHEN kind='charge' THEN amount ELSE -amount END),0)

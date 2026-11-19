@@ -10,6 +10,7 @@ export const router = Router();
 const listQuery = z.object({
   scope: z.enum(['mine', 'all']).default('mine'),
   channel: z.enum(['email', 'sms']).optional(),
+  status: z.enum(['queued', 'retrying', 'sent', 'failed']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
@@ -19,8 +20,8 @@ router.get(
   authenticate,
   queryOf(listQuery),
   wrap(async (req, res) => {
-    const { scope, channel, limit } = req.query;
-    const isStaff = req.user.role !== 'customer';
+    const { scope, channel, status, limit } = req.query;
+    const isStaff = ['staff', 'manager', 'admin'].includes(req.user.role);
     if (scope === 'all' && !isStaff) throw forbidden();
     const params = [];
     const where = [];
@@ -31,6 +32,10 @@ router.get(
     if (channel) {
       params.push(channel);
       where.push(`n.channel = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      where.push(`n.status = $${params.length}`);
     }
     params.push(limit);
     const { rows } = await query(
@@ -51,6 +56,13 @@ router.get(
         bookingId: n.booking_id,
         recipientName: n.recipient_name,
         createdAt: n.created_at,
+        // ID-44, ID-47: delivery result after up to 3 attempts
+        status: n.status,
+        attempts: n.attempts,
+        error: n.status === 'failed' ? n.last_error : null,
+        deliveredAt: n.delivered_at,
+        attachment: n.attachment_name,
+        receiptId: n.receipt_id,
       })),
     });
   }),

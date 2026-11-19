@@ -30,6 +30,7 @@ function linksFor(user) {
   return [
     { to: '/book', label: 'Book' },
     { to: '/trips', label: 'My trips' },
+    { to: '/receipts', label: 'Receipts' },
     { to: '/messages', label: 'Messages' },
     { to: '/contact', label: 'Help' },
   ];
