@@ -1,0 +1,42 @@
+# PrivateHire Cars - local infrastructure
+# Postgres is published on 5433 (not 5432) so it never clashes with other local Postgres containers.
+name: privatehire
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: privatehire-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: privatehire
+      POSTGRES_PASSWORD: privatehire_dev
+      POSTGRES_DB: privatehire
+    ports:
+      - "5433:5432"
+    volumes:
+      - privatehire_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U privatehire -d privatehire"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Full stack in one container (API + built web app). Start with:  docker compose --profile full up --build
+  app:
+    profiles: ["full"]
+    build: .
+    container_name: privatehire-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://privatehire:privatehire_dev@db:5432/privatehire
+      JWT_SECRET: change-me-in-real-deployments
+      PORT: "4000"
+      NODE_ENV: production
+      SEED_ON_START: "true"
+    ports:
+      - "4000:4000"
+
+volumes:
+  privatehire_pgdata:
