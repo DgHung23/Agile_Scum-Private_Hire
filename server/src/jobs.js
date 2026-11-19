@@ -1,6 +1,8 @@
 import { query } from './db.js';
 import { expireHolds } from './services/availability.js';
 import { deliverQueued, sendEmail, sendSms } from './services/notify.js';
+import { tx } from './db.js';
+import { billingCheck, issueInvoice } from './services/business.js';
 
 const fmt = (d) =>
   new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }).format(new Date(d));
@@ -50,11 +52,26 @@ export async function retention() {
   return Object.values(out).reduce((a, n) => a + n, 0);
 }
 
+/** N10: on the 1st of each month every company gets one invoice for its unbilled journeys (once per month). */
+export async function monthlyInvoices({ force = false } = {}) {
+  const day = Number(new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: 'Europe/London' }).format(new Date()));
+  if (day !== 1 && !force) return 0;
+  const { rows } = await query(
+    `SELECT * FROM companies c WHERE c.status IN ('approved','suspended')
+       AND NOT EXISTS (SELECT 1 FROM invoices i WHERE i.company_id=c.id AND date_trunc('month', i.issued_at) = date_trunc('month', now()))`,
+  );
+  let n = 0;
+  for (const c of rows) if (await tx((db) => issueInvoice(db, c))) n++;
+  return n;
+}
+
 export const JOBS = {
   expireHolds: () => expireHolds(),
   reminders: () => sendReminders(),
   deliver: () => deliverQueued(),
   retention: () => retention(),
+  invoices: () => monthlyInvoices(),
+  billing: () => billingCheck(),
 };
 
 export function startJobs() {

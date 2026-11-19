@@ -1105,6 +1105,7 @@ hr.sep {
     border-bottom: 0;
     border-right: 1px solid var(--hair-soft);
     padding: 20px 12px;
+    align-items: stretch; /* side menu: full-width, left-aligned items */
     overflow-y: auto;
   }
   .staff-nav a {
@@ -1359,7 +1360,7 @@ hr.sep {
 }
 
 /* icons inside a line of text stay on that line */
-a:not(.btn):not(.chip):not(.nav-link) > svg,
+a:not(.btn):not(.chip):not(.nav-link):not(.staff-nav a) > svg,
 p > svg,
 .small > svg,
 .tiny > svg,

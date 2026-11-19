@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { money } from '../format.js';
+import { TextField } from '../ui.jsx';
 import CardForm, { BLANK_CARD } from './CardForm.jsx';
 import { onlyDigits, parseExpiry, validateCardForm } from '../validators.js';
 
@@ -25,6 +26,13 @@ export default function PaymentStep({ amount, onSubmit, busy, serverErrors = {},
   const [savedCvv, setSavedCvv] = useState('');
   const [saveCard, setSaveCard] = useState(false);
   const [errors, setErrors] = useState({});
+  const [company, setCompany] = useState(null);
+  const [costCentre, setCostCentre] = useState('');
+
+  // N09: Business Bookers can put the journey on the company account.
+  useEffect(() => {
+    api.get('/business/me').then((r) => setCompany(r.company && ['approved', 'suspended'].includes(r.company.status) ? r.company : null)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get('/payments/cards').then((r) => {
@@ -46,6 +54,7 @@ export default function PaymentStep({ amount, onSubmit, busy, serverErrors = {},
   const submit = async (ev) => {
     ev.preventDefault();
     setErrors({});
+    if (method === 'invoice') return onSubmit({ method, ...(costCentre.trim() ? { costCentre: costCentre.trim() } : {}) });
     if (method !== 'card') return onSubmit({ method });
     if (choice !== 'new') {
       const c = cards.find((x) => x.id === choice);
@@ -67,7 +76,9 @@ export default function PaymentStep({ amount, onSubmit, busy, serverErrors = {},
   };
 
   const label =
-    method === 'cash'
+    method === 'invoice'
+      ? `Confirm on the company account - ${money(amount)}`
+      : method === 'cash'
       ? `Confirm booking - pay ${money(amount)} to the driver`
       : method === 'paypal'
         ? `Continue to PayPal - ${money(amount)}`
@@ -80,7 +91,7 @@ export default function PaymentStep({ amount, onSubmit, busy, serverErrors = {},
       <div className="card stack">
         <h3>Pay for your booking</h3>
         <div className="option-grid">
-          {METHODS.map(([m, icon, title, sub]) => (
+          {[...(company ? [['invoice', 'building', 'Company account', `${company.name} - monthly invoice`]] : []), ...METHODS].map(([m, icon, title, sub]) => (
             <button key={m} type="button" className={`option ${method === m ? 'selected' : ''}`} aria-pressed={method === m} onClick={() => setMethod(m)}>
               <span className="o-icon"><Icon name={icon} /></span>
               <span><div className="o-title">{title}</div><div className="o-sub">{sub}</div></span>
@@ -135,6 +146,12 @@ export default function PaymentStep({ amount, onSubmit, busy, serverErrors = {},
                 expiry, any 3-digit code (4 for Amex). The bank check code is <span className="kbd">123456</span>.
               </p>
             </details>
+          </div>
+        )}
+        {method === 'invoice' && (
+          <div className="stack-sm">
+            {company.status === 'suspended' && <p className="small" style={{ color: '#c13515' }}>Your company account is suspended. Please pay by card this time.</p>}
+            <TextField label="Cost-centre reference (optional)" value={costCentre} onChange={(e) => setCostCentre(e.target.value)} hint="Shown on your receipt and the company invoice" />
           </div>
         )}
         {method === 'cash' && <p className="muted small">Your booking is confirmed now. Pay the driver {money(amount)} in cash when the journey ends; your receipt follows.</p>}

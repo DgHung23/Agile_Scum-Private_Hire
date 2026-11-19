@@ -4,6 +4,7 @@ import { HttpError, badRequest } from '../errors.js';
 import { bookingConfirmationEmail, loadBookingRow } from './booking.js';
 import { sendEmail } from './notify.js';
 import { issueAndSend } from './receipts.js';
+import { checkCanUseAccount } from './business.js';
 import {
   cardInputSchema,
   createSavedCard,
@@ -34,7 +35,8 @@ export const BANKS = ['Barclays', 'HSBC UK', 'Lloyds', 'NatWest', 'Monzo', 'Sant
 
 export const paymentSchema = z
   .object({
-    method: z.enum(['card', 'paypal', 'bank', 'cash'], { error: 'Choose how you would like to pay' }),
+    method: z.enum(['card', 'paypal', 'bank', 'cash', 'invoice'], { error: 'Choose how you would like to pay' }),
+    costCentre: z.string().trim().max(40).optional(), // N09: shown on the receipt and the invoice
     card: cardInputSchema.optional(),
     savedCardId: z.string().uuid().optional(),
     cvv: z.string().optional(),
@@ -108,6 +110,27 @@ export async function beginPayment(db, { rows, customer, payment }) {
     }
     const done = await sendConfirmations(db, rows, customer, 'Cash to the driver at the end of the journey');
     return { done: true, rows: done, payments: [] };
+  }
+
+  if (payment.method === 'invoice') {
+    // N09: a Business Booker books on the company account; it is billed on the monthly invoice (N10).
+    const company = await checkCanUseAccount(db, customer.id, amount);
+    const payments = [];
+    for (const b of rows) {
+      await db.query(
+        "UPDATE bookings SET status='confirmed', payment_status='invoice', company_id=$2, cost_centre=$3, hold_expires_at=NULL, updated_at=now() WHERE id=$1",
+        [b.id, company.id, payment.costCentre || null],
+      );
+      const { rows: pr } = await db.query(
+        `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, gateway_ref, note)
+         VALUES ($1,$2,'charge','invoice',$3,'approved',$4,$5) RETURNING *`,
+        [b.id, customer.id, b.total, 'AC-' + crypto.randomBytes(5).toString('hex').toUpperCase(), `Company account: ${company.name}`],
+      );
+      payments.push(pr[0]);
+      await issueAndSend(db, pr[0]);
+    }
+    const done = await sendConfirmations(db, rows, customer, `Company account (${company.name}) - monthly invoice`);
+    return { done: true, rows: done, payments };
   }
 
   if (payment.method === 'paypal' || payment.method === 'bank') {

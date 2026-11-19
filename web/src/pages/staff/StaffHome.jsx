@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth.jsx';
 import { api, qs } from '../../api.js';
 import { Icon } from '../../icons.jsx';
-import { fmtShort } from '../../format.js';
+import { fmtShort, money } from '../../format.js';
 import { Alert, Empty, Loading, PageHeader, StatusBadge, useLoad, useToast } from '../../ui.jsx';
 import { MessageCard } from '../Messages.jsx';
 
@@ -34,6 +35,7 @@ export default function StaffHome() {
             <Stat n={data.stats.newEnquiries} label="New enquiries" to="/staff/enquiries" tone="alert" />
           </div>
           {(data.stats.openIncidents > 0 || data.stats.failedMessages > 0) && <Alerts stats={data.stats} />}
+          {user.role === 'manager' && <Channels />}
           <section className="stack">
             <div className="row-between">
               <h3>Next up</h3>
@@ -117,5 +119,34 @@ export function StaffOutbox() {
         {data?.notifications.map((n) => <MessageCard key={n.id} n={n} showRecipient />)}
       </div>
     </div>
+  );
+}
+
+const CHANNEL = { online: 'Online', phone: 'Phone', in_person: 'In person' };
+
+/** N32: bookings by channel against the Board's objective of 40% online (report Table 4). */
+function Channels() {
+  const [days, setDays] = useState(30);
+  const { data } = useLoad(() => api.get(`/staff/reports/popular?days=${days}`), [days]);
+  if (!data) return null;
+  const total = data.totals.bookings || 1;
+  const online = data.byChannel.find((c) => c.channel === 'online')?.bookings || 0;
+  const share = Math.round((online / total) * 100);
+  return (
+    <section className="card stack">
+      <div className="row-between">
+        <h3>Bookings by channel</h3>
+        <div className="chips">{[7, 30, 90].map((d) => <button key={d} className={`chip ${days === d ? 'active' : ''}`} onClick={() => setDays(d)}>{d} days</button>)}</div>
+      </div>
+      <p className="small">Online share: <strong>{share}%</strong> of {data.totals.bookings} bookings (Board target: 40%). Revenue {money(data.totals.revenue)}.</p>
+      {data.byChannel.map((c) => (
+        <div key={c.channel} className="stack-sm">
+          <div className="row-between small"><span>{CHANNEL[c.channel] || c.channel}</span><span>{c.bookings} &middot; {money(c.revenue)}</span></div>
+          <div style={{ height: 8, background: 'var(--soft)', borderRadius: 999 }} aria-hidden="true">
+            <div style={{ width: `${Math.round((c.bookings / total) * 100)}%`, height: '100%', borderRadius: 999, background: c.channel === 'online' ? 'var(--primary)' : 'var(--ink)' }} />
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
