@@ -4,7 +4,8 @@ export const body = (schema) => (req, _res, next) => {
   next();
 };
 export const queryOf = (schema) => (req, _res, next) => {
-  req.query = schema.parse(req.query ?? {});
+  // Express 5 exposes req.query as a getter-only property, so redefine it with the parsed (typed) values.
+  Object.defineProperty(req, 'query', { value: schema.parse(req.query ?? {}), writable: true, configurable: true });
   next();
 };
 /** Wrap async route handlers so rejections reach the error middleware (Express 4). */

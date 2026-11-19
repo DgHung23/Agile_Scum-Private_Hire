@@ -1,14 +1,39 @@
 import { Route, Routes } from 'react-router-dom';
-import { PublicLayout } from './components/Layout.jsx';
+import { PublicLayout, StaffLayout } from './components/Layout.jsx';
+import { RequireAuth } from './auth.jsx';
 import Home from './pages/Home.jsx';
 import ComingSoon from './pages/ComingSoon.jsx';
+import { Login, Register, StaffLogin } from './pages/Auth.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Account from './pages/Account.jsx';
+import Messages from './pages/Messages.jsx';
+import StaffHome, { StaffOutbox } from './pages/staff/StaffHome.jsx';
+
+const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
 
 export default function App() {
   return (
     <Routes>
       <Route element={<PublicLayout />}>
         <Route index element={<Home />} />
+        <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
+        <Route path="staff/login" element={<StaffLogin />} />
+        <Route path="dashboard" element={customer(<Dashboard />)} />
+        <Route path="account" element={customer(<Account />)} />
+        <Route path="messages" element={customer(<Messages />)} />
         <Route path="*" element={<ComingSoon title="Page coming soon" />} />
+      </Route>
+      <Route
+        path="staff"
+        element={
+          <RequireAuth roles={['staff', 'admin']}>
+            <StaffLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<StaffHome />} />
+        <Route path="outbox" element={<StaffOutbox />} />
       </Route>
     </Routes>
   );

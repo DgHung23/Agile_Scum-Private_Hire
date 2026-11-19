@@ -35,5 +35,5 @@ docs/     Sprint plan, user stories, design references
 
 ## Tech
 
-Node 22 + Express 4, PostgreSQL 16 (`pg`), JWT + bcrypt, zod validation, React 18 + React Router, plain CSS design
+Node 22 + Express 5, PostgreSQL 16 (`pg`), JWT + bcrypt, zod validation, React 18 + React Router, plain CSS design
 system (black/white pill language from the Uber reference, soft cards and calm forms from the Airbnb reference).

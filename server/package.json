@@ -10,7 +10,7 @@
     "migrate": "node src/migrate.js",
     "seed": "node src/seed.js",
     "db:reset": "node src/migrate.js --reset && node src/seed.js",
-    "test": "node --test --test-concurrency=1 test/"
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
   },
   "engines": {
     "node": ">=20"
