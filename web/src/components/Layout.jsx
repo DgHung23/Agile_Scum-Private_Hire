@@ -23,7 +23,7 @@ function linksFor(user) {
   if (!user) {
     return [
       { to: '/services', label: 'Services' },
-      { to: '/contact', label: 'Help & enquiries' },
+      { to: '/help', label: 'Help' },
     ];
   }
   if (isStaffRole(user)) return [{ to: homeFor(user), label: user.role === 'driver' ? 'My jobs' : 'Staff area' }];
@@ -32,7 +32,7 @@ function linksFor(user) {
     { to: '/trips', label: 'My trips' },
     { to: '/receipts', label: 'Receipts' },
     { to: '/messages', label: 'Messages' },
-    { to: '/contact', label: 'Help' },
+    { to: '/help', label: 'Help' },
   ];
 }
 
@@ -212,6 +212,7 @@ const STAFF_NAV = [
   { to: '/staff/call-desk', label: 'Call desk', icon: 'headset', roles: DESK },
   { to: '/staff/dispatch', label: 'Dispatch', icon: 'route', roles: DESK },
   { to: '/staff/enquiries', label: 'Enquiries', icon: 'message', roles: DESK },
+  { to: '/staff/support', label: 'Support', icon: 'headset', roles: DESK },
   { to: '/staff/availability', label: 'Availability', icon: 'map', roles: DESK },
   { to: '/staff/reviews', label: 'Reviews', icon: 'star', roles: DESK },
   { to: '/staff/fleet', label: 'Fleet', icon: 'car', roles: DESK },

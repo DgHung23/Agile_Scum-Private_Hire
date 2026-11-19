@@ -101,6 +101,7 @@ export default function Book() {
   const services = useLoad(() => api.publicGet('/catalog/services'));
   const places = useLoad(() => api.publicGet('/catalog/locations?limit=50'));
   const packages = useLoad(() => api.publicGet('/catalog/packages'));
+  const favourites = useLoad(() => (user?.role === 'customer' ? api.get('/support/favourites') : Promise.resolve({ favourites: [] })), [user?.id]);
   const wallet = useLoad(() => (user?.role === 'customer' ? api.get('/offers/mine') : Promise.resolve({ offers: [] })), [user?.id]);
 
   const [draft, setDraft] = useState(() => {
@@ -387,6 +388,7 @@ export default function Book() {
           {step === 1 && (
             <div className="stack">
               <datalist id="places">
+                {(favourites.data?.favourites || []).map((f) => <option key={f.id} value={f.address}>{f.label}</option>)}
                 {(places.data?.locations || []).map((l) => <option key={l.name} value={l.name}>{l.kind}</option>)}
               </datalist>
               <div className="form-grid two">

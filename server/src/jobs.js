@@ -30,10 +30,31 @@ export async function sendReminders() {
  * Background jobs (simulated scheduler). Each job is also safe to run on demand (Admin > Jobs, and the tests).
  * - every minute: release cabs held by unpaid bookings (ID-53), send 24-hour reminders (N19), deliver messages (ID-44)
  */
+/**
+ * N05 (TfL: records kept for at least 12 months; UK GDPR: no longer than needed): delete bookings, receipts, messages
+ * and support records older than the retention period, and remove deleted customers' leftover rows.
+ */
+export async function retention() {
+  const months = Number((await query("SELECT value FROM settings WHERE key='retention_months'")).rows[0]?.value || 12);
+  const cut = `now() - make_interval(months => ${Math.max(12, Math.floor(months))})`;
+  const del = async (sql) => (await query(sql)).rowCount;
+  const out = {
+    notifications: await del(`DELETE FROM notifications WHERE created_at < ${cut}`),
+    loginAttempts: await del(`DELETE FROM login_attempts WHERE at < ${cut}`),
+    sessions: await del(`DELETE FROM sessions WHERE created_at < ${cut}`),
+    lostItems: await del(`DELETE FROM lost_items WHERE created_at < ${cut}`),
+    complaints: await del(`DELETE FROM complaints WHERE created_at < ${cut}`),
+    enquiries: await del(`DELETE FROM enquiries WHERE created_at < ${cut}`),
+    bookings: await del(`DELETE FROM bookings WHERE end_at < ${cut}`), // receipts, events and reviews go with them
+  };
+  return Object.values(out).reduce((a, n) => a + n, 0);
+}
+
 export const JOBS = {
   expireHolds: () => expireHolds(),
   reminders: () => sendReminders(),
   deliver: () => deliverQueued(),
+  retention: () => retention(),
 };
 
 export function startJobs() {

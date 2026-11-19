@@ -225,6 +225,9 @@ export function TripDetail() {
         )}
         <div className="row small" style={{ gap: 16 }}>
           <Link to={`/contact?booking=${b.id}`} className="strong"><Icon name="message" size={14} /> Ask us about this trip</Link>
+          {['completed', 'no_show', 'in_progress', 'interrupted'].includes(b.status) && (
+            <Link to={`/support?booking=${b.id}`} className="strong"><Icon name="alert" size={14} /> Lost item or complaint</Link>
+          )}
           {['completed', 'cancelled', 'company_cancelled', 'no_show'].includes(b.status) && (
             <Link to={rebookLink(b)} className="strong"><Icon name="route" size={14} /> Book this journey again</Link>
           )}

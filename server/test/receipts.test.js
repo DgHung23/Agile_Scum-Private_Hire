@@ -128,7 +128,7 @@ test('FR-6.10 staff open a verified customer\'s receipt history, and the view is
   const id = (await t.pool.query("SELECT id FROM users WHERE email='customer@privatehire.test'")).rows[0].id;
   const blocked = await t.call('GET', `/staff/customers/${id}/receipts`, { token: staff });
   assert.equal(blocked.status, 403, 'caller must be verified first');
-  const v = await t.call('POST', `/staff/customers/${id}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123' }, confirmed: true } });
+  const v = await t.call('POST', `/staff/customers/${id}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123', secretWord: 'bluebird' }, confirmed: true } });
   assert.equal(v.body.verified, true, JSON.stringify(v.body));
   const r = await t.call('GET', `/staff/customers/${id}/receipts`, { token: staff });
   assert.equal(r.status, 200);

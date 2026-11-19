@@ -77,6 +77,7 @@ const answersSchema = z.object({
     email: z.string().trim().max(200).optional(),
     bookingRef: z.string().trim().max(20).optional(),
     houseNumber: z.string().trim().max(60).optional(),
+    secretWord: z.string().trim().max(40).optional(), // ID-20
   }),
   confirmed: z.boolean().optional(),
 });
@@ -123,8 +124,12 @@ router.post(
       const r = await query('SELECT 1 FROM bookings WHERE customer_id=$1 AND upper(ref)=upper($2)', [c.id, a.bookingRef]);
       results.booking_ref = r.rowCount > 0;
     }
+    if (a.secretWord) results.secret_word = !!c.secret_word_hash && (await bcrypt.compare(a.secretWord.toLowerCase(), c.secret_word_hash));
     const methods = Object.entries(results).filter(([, ok]) => ok).map(([k]) => k);
-    const passed = methods.length >= REQUIRED_MATCHES;
+    // ID-20, red-team row 10: details printed on a receipt (email, booking reference) cannot verify a caller on their
+    // own, and a customer who set a secret word must give it.
+    const counted = methods.filter((m) => !['email', 'booking_ref'].includes(m));
+    const passed = counted.length >= REQUIRED_MATCHES && (!c.secret_word_hash || results.secret_word === true);
     const confirmed = !!req.body.confirmed;
 
     // The "Identity verified" box is a second, human decision on top of the data checks.
@@ -135,12 +140,12 @@ router.post(
     );
     if (!passed && Object.keys(results).length) {
       // Only say which checks matched, never what the right answer is
-      return res.status(200).json({ verified: false, matched: methods.length, needed: REQUIRED_MATCHES, results });
+      return res.status(200).json({ verified: false, matched: counted.length, needed: REQUIRED_MATCHES, results, secretWordRequired: !!c.secret_word_hash });
     }
     if (passed && !confirmed) {
-      return res.json({ verified: false, matched: methods.length, needed: REQUIRED_MATCHES, results, awaitingConfirmation: true });
+      return res.json({ verified: false, matched: counted.length, needed: REQUIRED_MATCHES, results, awaitingConfirmation: true, secretWordRequired: !!c.secret_word_hash });
     }
-    res.json({ verified, matched: methods.length, needed: REQUIRED_MATCHES, results });
+    res.json({ verified, matched: counted.length, needed: REQUIRED_MATCHES, results, secretWordRequired: !!c.secret_word_hash });
   }),
 );
 

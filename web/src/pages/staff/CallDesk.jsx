@@ -101,15 +101,20 @@ export function NewCaller() {
 }
 
 /* ---------- 2. verify, then the customer record ---------- */
+// ID-20: the secret word is required when the customer set one. Email and booking reference are printed on
+// receipts, so they never count towards verification (red-team row 10).
 const QUESTIONS = [
+  ['secretWord', 'Secret word (required if the customer set one)', ''],
   ['postcode', 'Postcode on the account', 'SW1A 1AA'],
   ['phoneLast4', 'Last 4 digits of their phone number', '0123'],
   ['houseNumber', 'House number or first line of address', '10'],
-  ['email', 'Email address', 'name@example.com'],
-  ['bookingRef', 'A recent booking reference', 'PH-ABC123'],
+  ['email', 'Email address (does not count)', 'name@example.com'],
+  ['bookingRef', 'A recent booking reference (does not count)', 'PH-ABC123'],
 ];
 
-const RESULT_KEY = { phoneLast4: 'phone_last4', houseNumber: 'house_number', bookingRef: 'booking_ref' };
+const passes = (res) => res.matched >= res.needed && (!res.secretWordRequired || !!res.results?.secret_word);
+
+const RESULT_KEY = { phoneLast4: 'phone_last4', houseNumber: 'house_number', bookingRef: 'booking_ref', secretWord: 'secret_word' };
 function matchBadge(results, question) {
   const key = RESULT_KEY[question] || question;
   if (!(key in results)) return null;
@@ -154,12 +159,13 @@ function VerifyPanel({ id, name, onVerified }) {
           ))}
         </div>
         {res && (
-          <Alert tone={res.matched >= res.needed ? 'success' : 'warn'}>
+          <Alert tone={passes(res) ? 'success' : 'warn'}>
             {res.matched} of {res.needed} required answers match.
-            {res.matched < res.needed && ' Ask another question, or do not open the account.'}
+            {res.secretWordRequired && !res.results?.secret_word && ' This customer has a secret word: ask for it.'}
+            {!passes(res) && ' Ask another question, or do not open the account.'}
           </Alert>
         )}
-        {res && res.matched >= res.needed && !res.verified && (
+        {res && passes(res) && !res.verified && (
           <label className="check">
             <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
             <span><strong>Identity verified</strong> - I am satisfied the caller is the account holder.</span>
@@ -167,7 +173,7 @@ function VerifyPanel({ id, name, onVerified }) {
         )}
         <div className="row">
           <button className="btn" disabled={busy}>{busy ? 'Checking...' : 'Check answers'}</button>
-          {res && res.matched >= res.needed && (
+          {res && passes(res) && (
             <button type="button" className="btn btn-secondary" disabled={busy || !confirmed} onClick={() => check(null, true)}>Open account</button>
           )}
         </div>
@@ -297,6 +303,7 @@ export function CallDeskCustomer() {
           </div>
         ))}
       </section>
+      <Notes customerId={id} />
       <details className="card">
         <summary className="strong" style={{ cursor: 'pointer' }}>Receipts (opening them is recorded in the audit log)</summary>
         <div style={{ marginTop: 16 }}><Receipts customerId={id} /></div>
@@ -304,5 +311,36 @@ export function CallDeskCustomer() {
       {emailing && <EmailModal customer={c} onClose={() => setEmailing(false)} onDone={() => { setEmailing(false); toast('Email sent and recorded in the outbox', 'success'); }} />}
       {cancel && <CancelByStaff b={cancel} onClose={() => setCancel(null)} onDone={(r) => { setCancel(null); toast(r.refund ? `Cancelled. ${money(r.refund.amount)} refunded.` : 'Cancelled.', 'success'); reload(); }} />}
     </div>
+  );
+}
+
+/** N29: notes staff add to a customer account. */
+function Notes({ customerId }) {
+  const { data, reload } = useLoad(() => api.get(`/staff/customers/${customerId}/notes`), [customerId]);
+  const [text, setText] = useState('');
+  const [err, setErr] = useState('');
+  const add = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post(`/staff/customers/${customerId}/notes`, { body: text });
+      setText('');
+      setErr('');
+      reload();
+    } catch (x) {
+      setErr(x.fields?.body || x.message);
+    }
+  };
+  return (
+    <section className="card stack">
+      <h3>Notes</h3>
+      {data?.notes.length === 0 && <p className="small muted">No notes yet.</p>}
+      {data?.notes.map((n) => (
+        <div key={n.id} className="small"><strong>{n.by}</strong> <span className="muted">{fmtDate(n.at)}</span><div>{n.body}</div></div>
+      ))}
+      <form className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-end', gap: 8 }} onSubmit={add} noValidate>
+        <div className="grow"><TextField label="Add a note" value={text} onChange={(e) => setText(e.target.value)} error={err} /></div>
+        <button className="btn btn-secondary">Add</button>
+      </form>
+    </section>
   );
 }
