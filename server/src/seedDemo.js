@@ -5,6 +5,7 @@ import { pool, tx } from './db.js';
 import { migrate } from './migrate.js';
 import { seed } from './seed.js';
 import { newRef } from './services/booking.js';
+import { receiptForPayment } from './services/receipts.js';
 import { bookingWindow } from './services/availability.js';
 import { computeQuote, estimateDistance, estimateDuration } from './services/pricing.js';
 
@@ -94,11 +95,12 @@ export async function seedDemo() {
       }
       if (!ins) continue;
       const bid = ins.rows[0].id;
-      await db.query(
-        `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, card_brand, card_last4, gateway_ref)
-         VALUES ($1,$2,'charge','card',$3,'approved','visa','4242',$4)`,
+      const pay = await db.query(
+        `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, card_brand, card_last4, gateway_ref, sca_verified)
+         VALUES ($1,$2,'charge','card',$3,'approved','visa','4242',$4,true) RETURNING *`,
         [bid, cust, q.total, 'VC-DEMO' + n],
       );
+      await receiptForPayment(db, pay.rows[0]); // N39: receipt history
       if (n % 3 !== 0) {
         const rate = (base) => Math.max(1, Math.min(5, base + ((n + ci) % 3) - 1));
         await db.query(
@@ -125,13 +127,21 @@ export async function seedDemo() {
       const { start, end } = bookingWindow(new Date(Date.now() + hrs * 3600_000), dur);
       const q = computeQuote({ service, size: { ...size, multiplier: Number(size.multiplier) }, miles: dist.miles, channel, onlineDiscountPct: 15 });
       const cab = cabs.filter((c) => c.size_code === size.code)[u];
-      await db.query(
+      const up = await db.query(
         `INSERT INTO bookings (ref, customer_id, service_code, pickup, destination, distance_miles, pickup_at, end_at, passengers, size_code, cab_id, driver_id,
                                channel, priority, notify_pref, notify_phone, status, price_full, discount_online, total, payment_status, created_by, price_lines)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,2,$9,$10,$11,$12,$13,'both','07700 900123',$14,$15,$16,$17,$18,$19,$20)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,2,$9,$10,$11,$12,$13,'both','07700 900123',$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
         [newRef(), ids[ci], svc, from, to, dist.miles, start, end, size.code, cab.id, status === 'assigned' ? drivers[u].id : null, channel, channel === 'online',
           status, q.full, q.discountOnline, q.total, channel === 'online' ? 'paid' : 'due_cash', ids[ci], JSON.stringify(q.lines)],
       );
+      if (channel === 'online') {
+        const pay = await db.query(
+          `INSERT INTO payments (booking_id, user_id, kind, method, amount, status, card_brand, card_last4, gateway_ref, sca_verified)
+           VALUES ($1,$2,'charge','card',$3,'approved','visa','4242',$4,true) RETURNING *`,
+          [up.rows[0].id, ids[ci], q.total, 'VC-DEMOU' + u],
+        );
+        await receiptForPayment(db, pay.rows[0]);
+      }
       u++;
     }
 
@@ -159,7 +169,11 @@ export async function seedDemo() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   migrate()
     .then(seedDemo)
-    .then(() => pool.end())
+    .then(async () => {
+      const { stopAutoDelivery } = await import('./services/notify.js');
+      stopAutoDelivery();
+      await pool.end();
+    })
     .catch((e) => {
       console.error(e);
       process.exit(1);

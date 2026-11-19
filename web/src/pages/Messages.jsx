@@ -21,8 +21,17 @@ export function MessageCard({ n, showRecipient }) {
               {sms ? 'SMS' : 'Email'} to {n.to}
               {showRecipient && n.recipientName ? ` (${n.recipientName})` : ''} &middot; {fmtDateTime(n.createdAt)}
             </div>
+            {n.attachment && <div className="tiny"><Icon name="file" size={12} /> {n.attachment}</div>}
+            {n.status === 'failed' && (
+              <div className="tiny" style={{ color: 'var(--danger, #c13515)' }}>
+                Not delivered after {n.attempts} tries{n.error ? ` (${n.error})` : ''}. {showRecipient ? 'Contact the customer another way.' : 'Please check your details or call us on 020 7000 0000.'}
+              </div>
+            )}
           </div>
         </div>
+        {n.status && n.status !== 'sent' && (
+          <span className={`badge ${n.status === 'failed' ? 'red' : 'amber'}`}>{{ failed: 'Failed', queued: 'Sending', retrying: 'Retrying' }[n.status]}</span>
+        )}
         {!sms && (
           <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
             {open ? 'Hide' : 'Read'}

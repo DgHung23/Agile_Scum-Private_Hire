@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { PAYMENT_STATUS_LABEL, fmtDate, fmtDateTime, fmtTime, money } from '../format.js';
-import { Alert, Empty, Kv, Loading, Modal, PageHeader, StatusBadge, TextArea, useLoad, useToast } from '../ui.jsx';
+import { Alert, Empty, Kv, Loading, Modal, PageHeader, StatusBadge, TextArea, TextField, useLoad, useToast } from '../ui.jsx';
 import { BookingCard, BookingExtras, PriceBreakdown, RouteLine } from '../components/BookingBits.jsx';
 import Checkout from '../components/Checkout.jsx';
 import { ReviewForm, ReviewSummary } from '../components/ReviewForm.jsx';
@@ -220,6 +220,9 @@ export function TripDetail() {
           {b.priority && <p className="small muted"><Icon name="zap" size={14} /> Priority service: online bookings are dispatched first.</p>}
         </section>
 
+        {['confirmed', 'assigned', 'on_route', 'arrived', 'in_progress', 'interrupted'].includes(b.status) && (
+          <JourneyHelp b={b} />
+        )}
         <div className="row small" style={{ gap: 16 }}>
           <Link to={`/contact?booking=${b.id}`} className="strong"><Icon name="message" size={14} /> Ask us about this trip</Link>
           {['completed', 'cancelled', 'company_cancelled', 'no_show'].includes(b.status) && (
@@ -304,5 +307,103 @@ export function PayPending() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * During a journey (N20 contact us, N21 share my trip, N22 emergency button).
+ * A person is always reachable by phone while a journey is running (TfL rule in the report).
+ */
+function JourneyHelp({ b }) {
+  const toast = useToast();
+  const [share, setShare] = useState(null);
+  const [contact, setContact] = useState('');
+  const [modal, setModal] = useState(null); // 'emergency' | 'problem'
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState('');
+  const live = ['on_route', 'arrived', 'in_progress', 'interrupted'].includes(b.status);
+
+  const doShare = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post(`/bookings/${b.id}/share`, contact.trim() ? { contact: contact.trim() } : {});
+      setShare(r);
+      try {
+        await navigator.clipboard.writeText(r.url);
+        toast('Link copied', 'success');
+      } catch {
+        /* clipboard not available */
+      }
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const stopShare = async () => {
+    await api.del(`/bookings/${b.id}/share`);
+    setShare(null);
+    toast('Sharing turned off', 'success');
+  };
+  const report = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post(`/bookings/${b.id}/incident`, { kind: modal, message: msg.trim() || undefined });
+      setDone(r.message);
+      setModal(null);
+      setMsg('');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card stack">
+      <h3>{live ? 'Your journey' : 'Before you travel'}</h3>
+      {done && <Alert tone="success">{done}</Alert>}
+      <div className="row" style={{ gap: 8 }}>
+        <a className="btn btn-secondary btn-sm" href="tel:02070000000"><Icon name="phone" size={16} /> Call us 020 7000 0000</a>
+        {live && <button className="btn btn-subtle btn-sm" onClick={() => setModal('problem')}><Icon name="alert" size={16} /> Problem with my journey</button>}
+        {live && <button className="btn btn-sm" style={{ background: '#c13515' }} onClick={() => setModal('emergency')}><Icon name="alert" size={16} /> Emergency</button>}
+      </div>
+      <div className="stack-sm">
+        <div className="label">Share my trip</div>
+        {share ? (
+          <div className="stack-sm">
+            <div className="small">Anyone with this link can follow the car until 2 hours after the journey:</div>
+            <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+              <input className="input mono small" readOnly value={share.url} aria-label="Share link" onFocus={(e) => e.target.select()} />
+              <button className="btn btn-ghost btn-sm" onClick={stopShare}>Stop sharing</button>
+            </div>
+          </div>
+        ) : (
+          <div className="row" style={{ gap: 8, flexWrap: 'nowrap', alignItems: 'flex-end' }}>
+            <div className="grow">
+              <TextField label="Send the link to (optional)" placeholder="Email or mobile number" value={contact} onChange={(e) => setContact(e.target.value)} />
+            </div>
+            <button className="btn btn-secondary" onClick={doShare} disabled={busy}>Share</button>
+          </div>
+        )}
+      </div>
+      {modal && (
+        <Modal title={modal === 'emergency' ? 'Emergency' : 'Problem with my journey'} onClose={() => setModal(null)}>
+          <div className="stack">
+            {modal === 'emergency' ? (
+              <Alert tone="error" icon="alert">
+                <strong>If anyone is in danger, call 999 now.</strong> Pressing the button below also alerts our control room, who will call you.
+              </Alert>
+            ) : (
+              <p className="small muted">Tell us what is wrong (wrong car, driver late, breakdown, change of destination). Our control room will call you.</p>
+            )}
+            {modal === 'emergency' && <a className="btn btn-lg btn-block" style={{ background: '#c13515' }} href="tel:999">Call 999</a>}
+            <TextArea label="What is happening? (optional)" rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} />
+            <button className="btn btn-lg btn-block" onClick={report} disabled={busy}>{busy ? 'Sending...' : 'Alert the control room'}</button>
+          </div>
+        </Modal>
+      )}
+    </section>
   );
 }

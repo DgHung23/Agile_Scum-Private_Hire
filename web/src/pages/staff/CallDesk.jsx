@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, qs } from '../../api.js';
 import { Icon } from '../../icons.jsx';
-import { CHANNEL_LABEL, fmtDate, fmtDateTime, money } from '../../format.js';
+import { CHANNEL_LABEL, PAYMENT_STATUS_LABEL, fmtDate, fmtDateTime, money } from '../../format.js';
 import { Alert, Empty, Kv, Loading, Modal, PageHeader, StatusBadge, TextArea, TextField, useLoad, useToast } from '../../ui.jsx';
 import ProfileForm from '../../components/ProfileForm.jsx';
+import { Receipts } from '../Receipt.jsx';
 
 /* ---------- 1. find the caller ---------- */
 export function CallDesk() {
@@ -287,7 +288,7 @@ export function CallDeskCustomer() {
               <StatusBadge status={b.status} />
             </div>
             <div className="row-between small">
-              <span className="mono muted">{b.ref} &middot; {CHANNEL_LABEL[b.channel]} &middot; {b.paymentStatus}</span>
+              <span className="mono muted">{b.ref} &middot; {CHANNEL_LABEL[b.channel]} &middot; {PAYMENT_STATUS_LABEL[b.paymentStatus] || b.paymentStatus}</span>
               <span className="row">
                 <strong>{money(b.price.total)}</strong>
                 {['confirmed', 'assigned'].includes(b.status) && <button className="btn btn-subtle btn-sm" onClick={() => setCancel(b)}>Cancel</button>}
@@ -296,6 +297,10 @@ export function CallDeskCustomer() {
           </div>
         ))}
       </section>
+      <details className="card">
+        <summary className="strong" style={{ cursor: 'pointer' }}>Receipts (opening them is recorded in the audit log)</summary>
+        <div style={{ marginTop: 16 }}><Receipts customerId={id} /></div>
+      </details>
       {emailing && <EmailModal customer={c} onClose={() => setEmailing(false)} onDone={() => { setEmailing(false); toast('Email sent and recorded in the outbox', 'success'); }} />}
       {cancel && <CancelByStaff b={cancel} onClose={() => setCancel(null)} onDone={(r) => { setCancel(null); toast(r.refund ? `Cancelled. ${money(r.refund.amount)} refunded.` : 'Cancelled.', 'success'); reload(); }} />}
     </div>

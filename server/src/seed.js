@@ -143,7 +143,11 @@ export async function seed() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   migrate()
     .then(seed)
-    .then(() => pool.end())
+    .then(async () => {
+      const { stopAutoDelivery } = await import('./services/notify.js');
+      stopAutoDelivery();
+      await pool.end();
+    })
     .catch((e) => {
       console.error(e);
       process.exit(1);
