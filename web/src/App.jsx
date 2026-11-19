@@ -10,6 +10,8 @@ import Messages from './pages/Messages.jsx';
 import Book from './pages/Book.jsx';
 import Services from './pages/Services.jsx';
 import { TripDetail, Trips } from './pages/Trips.jsx';
+import Receipt from './pages/Receipt.jsx';
+import PayPalMock from './pages/PayPalMock.jsx';
 import StaffHome, { StaffOutbox } from './pages/staff/StaffHome.jsx';
 import { StaffDrivers, StaffFleet } from './pages/staff/Fleet.jsx';
 
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="services" element={<Services />} />
         <Route path="trips" element={customer(<Trips />)} />
         <Route path="trips/:id" element={customer(<TripDetail />)} />
+        <Route path="trips/:id/receipt" element={customer(<Receipt />)} />
+        <Route path="paypal-mock" element={customer(<PayPalMock />)} />
         <Route path="dashboard" element={customer(<Dashboard />)} />
         <Route path="account" element={customer(<Account />)} />
         <Route path="messages" element={customer(<Messages />)} />

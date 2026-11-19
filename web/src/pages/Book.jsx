@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
@@ -6,6 +6,7 @@ import { Icon } from '../icons.jsx';
 import { fmtDateTime, fmtShort, londonToIso, money, todayLondon } from '../format.js';
 import { Alert, Field, Kv, Loading, SelectField, TextField, useLoad } from '../ui.jsx';
 import { PriceBreakdown } from '../components/BookingBits.jsx';
+import PaymentStep from '../components/PaymentStep.jsx';
 import { SERVICE_ICONS } from './Home.jsx';
 
 const DRAFT_KEY = 'ph_booking_draft';
@@ -33,7 +34,7 @@ export const clearDraft = () => {
   }
 };
 
-const STEPS = ['Service', 'Journey', 'Cab & price', 'Review'];
+const STEPS = ['Service', 'Journey', 'Cab & price', 'Review', 'Payment'];
 
 function Stepper({ step }) {
   return (
@@ -105,6 +106,19 @@ export default function Book() {
   const [error, setError] = useState('');
   const [alt, setAlt] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [payErrors, setPayErrors] = useState({});
+  const pendingError = useRef('');
+
+  // Returning from the (simulated) PayPal page
+  useEffect(() => {
+    const pp = loc.state?.paypal;
+    if (!pp) return;
+    if (pp.status === 'approved') setDraft((d) => ({ ...d, paypalToken: pp.token, paypalPayer: pp.payer }));
+    else pendingError.current = 'The PayPal payment was cancelled. You have not been charged - choose a payment method to try again.';
+    setStep(4);
+    nav(loc.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep the draft so logging in mid-booking does not lose anything
   useEffect(() => saveDraft({ ...draft, step }), [draft, step]);
@@ -184,21 +198,33 @@ export default function Book() {
     }
   };
 
-  const confirm = async () => {
+  const startPayPal = async () => {
+    const r = await api.post('/payments/paypal/start', { amount: size.price.total });
+    nav(`/paypal-mock?token=${encodeURIComponent(r.token)}`);
+  };
+
+  const confirm = async (payment) => {
     setError('');
     setAlt(null);
+    setPayErrors({});
     setBusy(true);
     try {
-      const r = await api.post('/bookings', { ...journeyBody(), sizeCode: draft.sizeCode, notifyPref: draft.notifyPref });
+      const r = await api.post('/bookings', { ...journeyBody(), sizeCode: draft.sizeCode, notifyPref: draft.notifyPref, payment });
       clearDraft();
       nav(`/trips/${r.booking.id}`, { replace: true, state: { justBooked: true } });
     } catch (err) {
       setError(err.message);
       if (err.code === 'no_availability') {
         setAlt(err.alternatives || null);
+      } else if (err.code === 'payment_declined') {
+        if (payment.method === 'paypal') setDraft((d) => ({ ...d, paypalToken: '', paypalPayer: '' }));
       } else if (err.fields && Object.keys(err.fields).length) {
-        setErrors(err.fields);
-        setStep(1);
+        const payF = Object.fromEntries(Object.entries(err.fields).filter(([k]) => k.startsWith('payment.')));
+        if (Object.keys(payF).length) setPayErrors(payF);
+        else {
+          setErrors(err.fields);
+          setStep(1);
+        }
       }
     } finally {
       setBusy(false);
@@ -225,6 +251,10 @@ export default function Book() {
     if (step >= 2 && !quote && service) {
       fetchQuote().then((okay) => {
         if (!okay) setStep(1);
+        else if (pendingError.current) {
+          setError(pendingError.current);
+          pendingError.current = '';
+        }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,8 +426,8 @@ export default function Book() {
               ) : user.role !== 'customer' ? (
                 <Alert tone="warn">You are signed in as staff. Use the Call desk to book for a customer.</Alert>
               ) : (
-                <button className="btn btn-lg btn-block" onClick={confirm} disabled={busy}>
-                  {busy ? 'Confirming...' : `Confirm booking - ${money(size.price.total)}`}
+                <button className="btn btn-lg btn-block" onClick={() => { setError(''); setStep(4); }}>
+                  Continue to payment - {money(size.price.total)}
                 </button>
               )}
             </div>
@@ -410,6 +440,24 @@ export default function Book() {
             </div>
           )}
           {step === 3 && <div><button className="btn btn-subtle" onClick={() => setStep(2)}>Back</button></div>}
+
+          {step === 4 && size && user?.role === 'customer' && (
+            <div className="stack">
+              <PaymentStep
+                amount={size.price.total}
+                paypal={draft.paypalToken ? { token: draft.paypalToken, payer: draft.paypalPayer } : null}
+                onPayPal={startPayPal}
+                onSubmit={confirm}
+                busy={busy}
+                serverErrors={payErrors}
+                submitLabel={`Pay ${money(size.price.total)} and confirm booking`}
+              />
+              <div><button className="btn btn-subtle" onClick={() => { setError(''); setStep(3); }}>Back to review</button></div>
+            </div>
+          )}
+          {step === 4 && !(user?.role === 'customer') && (
+            <Alert tone="warn">Log in with a customer account to pay. <Link to="/login" state={{ from: loc.pathname }} className="strong">Log in</Link></Alert>
+          )}
         </div>
 
         <Summary draft={draft} service={service} size={size} quote={quote} step={step} />

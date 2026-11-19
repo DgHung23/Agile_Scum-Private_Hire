@@ -25,6 +25,8 @@ test('US1.1 register: validates every field and reports them all', async () => {
   for (const k of ['fullName', 'email', 'phone', 'addressLine', 'city', 'postcode', 'password']) {
     assert.ok(f[k], `expected an error for ${k}`);
   }
+  assert.equal(f.fullName, 'Full name is required', 'missing fields get friendly messages, not zod internals');
+  assert.equal(f.addressLine, 'Address is required');
 });
 
 test('US1.1 register: success, password hashed, email normalised', async () => {
