@@ -67,3 +67,13 @@ test('N03 the audit log records staff actions with name and time, and filters', 
   assert.ok(only.body.entries.length >= 1);
   assert.ok(only.body.entries.every((e) => e.action.startsWith('settings')));
 });
+
+test('DoD line 12: the API reference is served outside production and lists every endpoint', async () => {
+  const res = await fetch(t.url.replace('/api/v1', '/api/docs.json'));
+  assert.equal(res.status, 200);
+  const { endpoints } = await res.json();
+  assert.ok(endpoints.length > 100);
+  assert.ok(endpoints.some((e) => e.method === 'POST' && e.path === '/api/v1/bookings/:id/3ds'));
+  const { config } = await import('../src/config.js');
+  assert.equal(config.isProd, false, 'the route is only registered when NODE_ENV is not production');
+});

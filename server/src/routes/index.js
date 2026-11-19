@@ -17,8 +17,14 @@ import { router as driver } from './driver.js';
 import { router as support, staffRouter as staffSupport } from './support.js';
 import { router as business, staffRouter as staffBusiness } from './business.js';
 
+/** Every mounted router, so the API reference can list the endpoints (development only, DoD line 12). */
+export const mounts = [];
+
 /** Central route registry. Each module adds its router here (see docs/SPRINTS.md). */
 export function registerRoutes(api) {
+  mounts.length = 0;
+  const use = api.use.bind(api);
+  api = { use: (path, router) => (mounts.push([path, router]), use(path, router)) };
   api.use('/auth', auth);
   api.use('/notifications', notifications);
   api.use('/catalog', catalog);
@@ -45,4 +51,16 @@ export function registerRoutes(api) {
   api.use('/business', business);
   api.use('/staff', staffBusiness);
   api.use('/admin', admin);
+}
+
+/** List of [METHOD, path] for every endpoint, read from the routers themselves. */
+export function listEndpoints() {
+  const out = [];
+  for (const [base, router] of mounts) {
+    for (const layer of router.stack || []) {
+      if (!layer.route) continue;
+      for (const m of Object.keys(layer.route.methods)) out.push([m.toUpperCase(), `/api/v1${base}${layer.route.path}`]);
+    }
+  }
+  return out.sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]));
 }
