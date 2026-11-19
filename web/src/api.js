@@ -1,24 +1,7 @@
 // Thin fetch wrapper around the Private Hire REST API (/api/v1). The same contract serves the future mobile app.
 const BASE = (import.meta.env.VITE_API_URL || '') + '/api/v1';
-const TOKEN_KEY = 'ph_token';
-
-export const tokenStore = {
-  get() {
-    try {
-      return localStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
-    }
-  },
-  set(t) {
-    try {
-      if (t) localStorage.setItem(TOKEN_KEY, t);
-      else localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* storage unavailable */
-    }
-  },
-};
+// ID-13: the session lives in an HttpOnly cookie set by the server, so this file never sees or stores a token.
+// Every request carries X-PH-Client, which the server requires for cookie-authenticated changes (CSRF guard).
 
 export class ApiError extends Error {
   constructor(status, payload) {
@@ -34,16 +17,15 @@ export const setUnauthorizedHandler = (fn) => {
   onUnauthorized = fn;
 };
 
-async function request(method, path, body, { auth = true } = {}) {
-  const headers = { Accept: 'application/json' };
+async function request(method, path, body, { auth = true, silent = false } = {}) {
+  const headers = { Accept: 'application/json', 'X-PH-Client': 'web' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const token = tokenStore.get();
-  if (auth && token) headers.Authorization = `Bearer ${token}`;
   let res;
   try {
     res = await fetch(BASE + path, {
       method,
       headers,
+      credentials: auth ? 'include' : 'omit',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -57,7 +39,7 @@ async function request(method, path, body, { auth = true } = {}) {
     data = null;
   }
   if (!res.ok) {
-    if (res.status === 401 && token) onUnauthorized();
+    if (res.status === 401 && auth && !silent) onUnauthorized(data?.error?.code);
     throw new ApiError(res.status, data);
   }
   return data;
@@ -70,6 +52,8 @@ export const api = {
   put: (p, b = {}) => request('PUT', p, b),
   del: (p) => request('DELETE', p),
   publicGet: (p) => request('GET', p, undefined, { auth: false }),
+  /** GET that does not trigger the signed-out handler (used to check for a session on page load). */
+  probe: (p) => request('GET', p, undefined, { silent: true }),
 };
 
 export const qs = (obj) => {

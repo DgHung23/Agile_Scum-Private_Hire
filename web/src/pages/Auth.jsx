@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { isStaffRole, useAuth } from '../auth.jsx';
+import { homeFor, isStaffRole, useAuth } from '../auth.jsx';
 import { Alert, TextField } from '../ui.jsx';
 import { v, validate } from '../validators.js';
 import ProfileForm from '../components/ProfileForm.jsx';
 
 function LoginForm({ staff }) {
-  const { login, user } = useAuth();
+  const { login, user, notice, clearNotice } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
   const [f, setF] = useState({ email: '', password: '' });
@@ -17,8 +17,8 @@ function LoginForm({ staff }) {
 
   const destFor = (u) => {
     const from = loc.state?.from;
-    if (from && !!isStaffRole(u) === from.startsWith('/staff')) return from;
-    return isStaffRole(u) ? '/staff' : '/dashboard';
+    if (from && !!isStaffRole(u) === (from.startsWith('/staff') || from.startsWith('/driver'))) return from;
+    return homeFor(u);
   };
   if (user) return <Navigate to={destFor(user)} replace />;
 
@@ -31,6 +31,7 @@ function LoginForm({ staff }) {
     setBusy(true);
     try {
       const u = await login(f.email.trim(), f.password, { staff });
+      clearNotice();
       nav(destFor(u), { replace: true });
     } catch (err) {
       setError(err.message);
@@ -41,12 +42,15 @@ function LoginForm({ staff }) {
 
   return (
     <form onSubmit={submit} noValidate className="stack">
+      {notice && <Alert tone="info">{notice}</Alert>}
       {loc.state?.registered && (
         <Alert tone="success">
-          Your account is ready. We have emailed a confirmation to <strong>{loc.state.registered}</strong>. Log in to start
-          booking.
+          Thank you. We have emailed <strong>{loc.state.registered}</strong> a confirmation and a link to verify your
+          address. Log in now; you can book as soon as the address is verified.
         </Alert>
       )}
+      {loc.state?.verified && <Alert tone="success">Your email address is verified. Log in to book.</Alert>}
+      {loc.state?.unlocked && <Alert tone="success">Your account is unlocked. You can log in again.</Alert>}
       {loc.state?.reset && <Alert tone="success">Your password has been changed. Log in with your new password.</Alert>}
       {error && <Alert tone="error">{error}</Alert>}
       <TextField label="Email" type="email" autoComplete="email" inputMode="email" value={f.email} error={errors.email}
@@ -89,13 +93,18 @@ export function StaffLogin() {
       <div className="narrow card card-elevated stack-lg">
         <div>
           <h2>Staff sign in</h2>
-          <p className="muted" style={{ marginTop: 6 }}>Call-centre, control-centre and manager access.</p>
+          <p className="muted" style={{ marginTop: 6 }}>Call Centre Staff, Managers, Admins and Drivers.</p>
         </div>
         <LoginForm staff />
         <p className="small center muted">Customer? <Link to="/login" className="strong">Log in here</Link></p>
         <details className="small muted">
           <summary style={{ cursor: 'pointer' }}>Demo accounts</summary>
-          <p style={{ marginTop: 8 }}>Staff: staff@privatehire.test / Staff123!<br />Manager: admin@privatehire.test / Admin123!</p>
+          <p style={{ marginTop: 8 }}>
+            Call Centre Staff: staff@privatehire.test / StaffPass123!<br />
+            Manager: manager@privatehire.test / ManagerPass123!<br />
+            Admin: admin@privatehire.test / AdminPass123!<br />
+            Driver: driver@privatehire.test / DriverPass123!
+          </p>
         </details>
       </div>
     </div>
@@ -117,6 +126,7 @@ export function Register() {
         </div>
         <ProfileForm
           withPassword
+          withSecretWord
           submitLabel="Create account"
           onSubmit={async (values) => {
             await api.post('/auth/register', values);
@@ -208,10 +218,53 @@ export function ResetPassword() {
         {!token && <Alert tone="error">This reset link is not valid. <Link to="/forgot-password" className="strong">Ask for a new one</Link>.</Alert>}
         {err && <Alert tone="error">{err} <Link to="/forgot-password" className="strong">Ask for a new link</Link></Alert>}
         <form className="stack" onSubmit={submit} noValidate>
-          <TextField label="New password" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} error={errors.pw} hint="At least 8 characters with a letter and a number" />
+          <TextField label="New password" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} error={errors.pw} hint="At least 12 characters with a letter and a number" />
           <TextField label="Repeat new password" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} error={errors.pw2} />
           <button className="btn btn-lg btn-block" disabled={busy || !token}>{busy ? 'Saving...' : 'Change password'}</button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/** ID-11: the link in the verification email lands here. */
+export function VerifyEmail() {
+  return <TokenLanding endpoint="/auth/verify-email" title="Verifying your email" doneState={{ verified: true }} />;
+}
+
+/** ID-13: the link in the "we paused sign-ins" email lands here. */
+export function Unlock() {
+  return <TokenLanding endpoint="/auth/unlock" title="Unlocking your account" doneState={{ unlocked: true }} />;
+}
+
+function TokenLanding({ endpoint, title, doneState }) {
+  const [params] = useSearchParams();
+  const token = params.get('token') || '';
+  const { user, refresh } = useAuth();
+  const nav = useNavigate();
+  const [state, setState] = useState({ busy: true, error: '', message: '' });
+  const ran = useRef(false);
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+    if (!token) return setState({ busy: false, error: 'This link is not valid.', message: '' });
+    api
+      .post(endpoint, { token })
+      .then((r) => {
+        setState({ busy: false, error: '', message: r.message });
+        if (user) refresh().catch(() => {});
+        else setTimeout(() => nav('/login', { replace: true, state: doneState }), 1200);
+      })
+      .catch((e) => setState({ busy: false, error: e.message, message: '' }));
+  }, [token, endpoint, user, refresh, nav, doneState]);
+  return (
+    <div className="container page">
+      <div className="narrow card card-elevated stack-lg">
+        <h2>{title}</h2>
+        {state.busy && <p className="muted">One moment...</p>}
+        {state.message && <Alert tone="success">{state.message}</Alert>}
+        {state.error && <Alert tone="error">{state.error}</Alert>}
+        <p className="small"><Link to={user ? homeFor(user) : '/login'} className="strong">Continue</Link></p>
       </div>
     </div>
   );

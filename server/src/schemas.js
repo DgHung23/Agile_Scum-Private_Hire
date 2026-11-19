@@ -24,7 +24,7 @@ export const phoneSchema = z
 
 export const passwordSchema = z
   .string({ error: 'Password is required' })
-  .min(8, 'Use at least 8 characters')
+  .min(12, 'Use at least 12 characters')
   .max(72, 'Use at most 72 characters')
   .refine((v) => /[A-Za-z]/.test(v) && /\d/.test(v), 'Include at least one letter and one number');
 
@@ -42,15 +42,25 @@ export const profileFields = {
   postcode: postcodeSchema,
 };
 
+export const secretWordSchema = z
+  .string()
+  .trim()
+  .min(4, 'Use at least 4 characters')
+  .max(40, 'Use at most 40 characters');
+
 export const registerSchema = z.object({
   ...profileFields,
   password: passwordSchema,
   notifyPref: z.enum(['email', 'text', 'both']).optional(),
+  marketingConsent: z.boolean().optional(), // ID-11 criterion 3: registering works with the box unticked
+  secretWord: secretWordSchema.optional().or(z.literal('')),
 });
 
 export const profileUpdateSchema = z.object({
   ...profileFields,
   notifyPref: z.enum(['email', 'text', 'both']).optional(),
+  marketingConsent: z.boolean().optional(),
+  currentPassword: z.string().optional(), // ID-15: needed when the email address changes
 });
 
 export const loginSchema = z.object({

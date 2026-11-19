@@ -8,7 +8,7 @@ let cust;
 let customerId;
 before(async () => {
   t = await startServer();
-  staff = await t.login('staff@privatehire.test', 'Staff123!', true);
+  staff = await t.login('staff@privatehire.test', 'StaffPass123!', true);
   cust = await t.login('customer@privatehire.test', 'Customer123!');
   customerId = (await t.pool.query("SELECT id FROM users WHERE email='customer@privatehire.test'")).rows[0].id;
 });
@@ -45,8 +45,8 @@ test('US2.2 an enquiry about a trip must be about the customer\'s own booking', 
   const ok = await t.call('POST', '/enquiries', { token: cust, body: { name: 'Alex Morgan', email: 'customer@privatehire.test', subject: 'Luggage', message: 'We have 3 large cases.', bookingId: b.id } });
   assert.equal(ok.status, 201);
   assert.equal(ok.body.enquiry.bookingRef, b.ref);
-  await t.call('POST', '/auth/register', { body: { fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1' } });
-  const other = await t.login('pat@example.com', 'Passw0rd1');
+  await t.register({ fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1234' });
+  const other = await t.login('pat@example.com', 'Passw0rd1234');
   const steal = await t.call('POST', '/enquiries', { token: other, body: { name: 'Pat', email: 'pat@example.com', subject: 'Not mine', message: 'x', bookingId: b.id } });
   assert.equal(steal.status, 400);
 });

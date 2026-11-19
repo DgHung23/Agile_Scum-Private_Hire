@@ -546,6 +546,16 @@ p {
     grid-column: span 2;
   }
 }
+@media (min-width: 860px) {
+  .form-grid.three {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: end;
+  }
+  .form-grid.four {
+    grid-template-columns: repeat(4, 1fr);
+    align-items: end;
+  }
+}
 .check {
   display: flex;
   gap: 12px;
@@ -810,6 +820,9 @@ p {
   background: var(--softer);
   border-radius: var(--r-xl);
   color: var(--body);
+}
+.empty > svg {
+  margin: 0 auto;
 }
 
 /* ---------- tables ---------- */

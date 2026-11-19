@@ -40,8 +40,8 @@ export async function seedDemo() {
     const ids = [(await db.query("SELECT id FROM users WHERE email='customer@privatehire.test'")).rows[0].id];
     for (const [name, email, phone, addr, pc] of CUSTOMERS) {
       const r = await db.query(
-        `INSERT INTO users (role,email,password_hash,full_name,phone,address_line,city,postcode,notify_pref)
-         VALUES ('customer',$1,$2,$3,$4,$5,'London',$6,'both') ON CONFLICT (email) DO UPDATE SET email=EXCLUDED.email RETURNING id`,
+        `INSERT INTO users (role,email,password_hash,full_name,phone,address_line,city,postcode,notify_pref,email_verified,marketing_consent)
+         VALUES ('customer',$1,$2,$3,$4,$5,'London',$6,'both',true,true) ON CONFLICT (email) DO UPDATE SET email=EXCLUDED.email RETURNING id`,
         [email, hash, name, phone, addr, pc],
       );
       ids.push(r.rows[0].id);

@@ -41,7 +41,7 @@ function PasswordForm() {
         <TextField label="Current password" type="password" autoComplete="current-password" value={f.currentPassword}
           onChange={(e) => setF({ ...f, currentPassword: e.target.value })} error={errors.currentPassword} />
         <TextField label="New password" type="password" autoComplete="new-password" value={f.newPassword}
-          onChange={(e) => setF({ ...f, newPassword: e.target.value })} error={errors.newPassword} hint="At least 8 characters with a letter and a number" />
+          onChange={(e) => setF({ ...f, newPassword: e.target.value })} error={errors.newPassword} hint="At least 12 characters with a letter and a number" />
       </div>
       <div><button className="btn btn-secondary" disabled={busy}>{busy ? 'Saving...' : 'Change password'}</button></div>
     </form>
@@ -130,6 +130,7 @@ export default function Account() {
     <div className="container page">
       <div className="medium stack-lg">
         <PageHeader title="Your account" sub="Keep your details up to date so drivers and staff can reach you." />
+        <VerifyBanner />
         <section className="card stack">
           <h3>Personal details</h3>
           <ProfileForm
@@ -147,7 +148,78 @@ export default function Account() {
           <h3>Security</h3>
           <PasswordForm />
         </section>
+        <SecretWordForm hasOne={user.hasSecretWord} onSaved={() => setUser({ ...user, hasSecretWord: true })} />
       </div>
     </div>
+  );
+}
+
+/** ID-11: until the address is verified the customer cannot book; offer a new link. */
+export function VerifyBanner() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  if (!user || user.role !== 'customer' || user.emailVerified) return null;
+  const resend = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post('/auth/verify-email/resend');
+      toast(r.message, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Alert tone="warn">
+      <div className="row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+        <span>Please verify <strong>{user.email}</strong> before your first booking. The link is in your Messages.</span>
+        <button className="btn btn-sm btn-secondary" onClick={resend} disabled={busy}>{busy ? 'Sending...' : 'Send a new link'}</button>
+      </div>
+    </Alert>
+  );
+}
+
+/** ID-20: secret word for phone verification (stored hashed, never shown back). */
+function SecretWordForm({ hasOne, onSaved }) {
+  const toast = useToast();
+  const [f, setF] = useState({ secretWord: '', currentPassword: '' });
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    const errs = validate(f, {
+      secretWord: (x) => (x.trim().length >= 4 ? '' : 'Use at least 4 characters'),
+      currentPassword: (x) => (x ? '' : 'Current password is required'),
+    });
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    setBusy(true);
+    try {
+      await api.put('/auth/me/secret-word', f);
+      toast('Secret word saved', 'success');
+      setF({ secretWord: '', currentPassword: '' });
+      onSaved();
+    } catch (err) {
+      setErrors(err.fields || {});
+      if (!err.fields || !Object.keys(err.fields).length) toast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card stack">
+      <h3>Phone booking secret word</h3>
+      <p className="muted small">
+        {hasOne ? 'You have a secret word. Enter a new one to change it.' : 'Set a word our call centre can ask for when you phone us.'} It never
+        appears on receipts or emails.
+      </p>
+      <form className="form-grid two" onSubmit={submit} noValidate>
+        <TextField label="Secret word" autoComplete="off" value={f.secretWord} onChange={(e) => setF({ ...f, secretWord: e.target.value })} error={errors.secretWord} />
+        <TextField label="Current password" type="password" autoComplete="current-password" value={f.currentPassword} onChange={(e) => setF({ ...f, currentPassword: e.target.value })} error={errors.currentPassword} />
+        <div className="span-2"><button className="btn btn-secondary" disabled={busy}>{busy ? 'Saving...' : 'Save secret word'}</button></div>
+      </form>
+    </section>
   );
 }

@@ -25,7 +25,7 @@ export async function startServer({ seedData = true } = {}) {
   const call = async (method, p, { token, body } = {}) => {
     const res = await fetch(url + p, {
       method,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: { 'Content-Type': 'application/json', 'X-Client': 'app', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
@@ -35,9 +35,16 @@ export async function startServer({ seedData = true } = {}) {
     const r = await call('POST', staff ? '/auth/staff-login' : '/auth/login', { body: { email, password } });
     return r.body?.token;
   };
+  /** Register through the API, then mark the email verified (as if the customer clicked the link). */
+  const register = async (body, { verify = true } = {}) => {
+    const r = await call('POST', '/auth/register', { body });
+    if (verify && r.status === 201) await pool.query('UPDATE users SET email_verified=true WHERE email=lower($1)', [body.email]);
+    const { rows } = await pool.query('SELECT id, email, full_name FROM users WHERE email=lower($1)', [body.email || '']);
+    return { ...r, user: rows[0] };
+  };
   const close = async () => {
     await new Promise((r) => server.close(r));
     await pool.end();
   };
-  return { url, call, login, close, pool };
+  return { url, call, login, register, close, pool };
 }

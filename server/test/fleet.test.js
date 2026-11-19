@@ -5,9 +5,11 @@ import { bookingWindow, findAvailableCabs, BUFFER_MINUTES } from '../src/service
 
 let t;
 let staff;
+let manager;
 before(async () => {
   t = await startServer();
-  staff = await t.login('staff@privatehire.test', 'Staff123!', true);
+  staff = await t.login('staff@privatehire.test', 'StaffPass123!', true);
+  manager = await t.login('manager@privatehire.test', 'ManagerPass123!', true); // ID-65, ID-66: the Manager edits the fleet
 });
 after(() => t.close());
 
@@ -31,22 +33,22 @@ test('US9.6 fleet endpoints are staff only', async () => {
 });
 
 test('US9.6 add cab: validated and registration unique ignoring case/spaces', async () => {
-  const bad = await t.call('POST', '/staff/cabs', { token: staff, body: { reg: '', make: '', model: '', colour: '', sizeCode: '' } });
+  const bad = await t.call('POST', '/staff/cabs', { token: manager, body: { reg: '', make: '', model: '', colour: '', sizeCode: '' } });
   assert.equal(bad.status, 400);
-  const ok = await t.call('POST', '/staff/cabs', { token: staff, body: cab });
+  const ok = await t.call('POST', '/staff/cabs', { token: manager, body: cab });
   assert.equal(ok.status, 201);
   assert.equal(ok.body.cab.reg, 'ZZ99 ABC');
-  const dup = await t.call('POST', '/staff/cabs', { token: staff, body: { ...cab, reg: 'ZZ99ABC' } });
+  const dup = await t.call('POST', '/staff/cabs', { token: manager, body: { ...cab, reg: 'ZZ99ABC' } });
   assert.equal(dup.status, 409);
   assert.ok(dup.body.error.fields.reg);
-  const badSize = await t.call('POST', '/staff/cabs', { token: staff, body: { ...cab, reg: 'QQ11 AAA', sizeCode: 'tank' } });
+  const badSize = await t.call('POST', '/staff/cabs', { token: manager, body: { ...cab, reg: 'QQ11 AAA', sizeCode: 'tank' } });
   assert.equal(badSize.status, 400);
 });
 
 test('US9.6 edit and deactivate a cab', async () => {
   const list = await t.call('GET', '/staff/cabs?q=ZZ99', { token: staff });
   const id = list.body.cabs[0].id;
-  const edit = await t.call('PATCH', `/staff/cabs/${id}`, { token: staff, body: { ...cab, colour: 'Blue', active: false } });
+  const edit = await t.call('PATCH', `/staff/cabs/${id}`, { token: manager, body: { ...cab, colour: 'Blue', active: false } });
   assert.equal(edit.status, 200);
   assert.equal(edit.body.cab.colour, 'Blue');
   assert.equal(edit.body.cab.active, false);
@@ -55,14 +57,14 @@ test('US9.6 edit and deactivate a cab', async () => {
 
 test('US9.7 drivers: add, unique licence, deactivate', async () => {
   const d = { fullName: 'Test Driver', phone: '07700 900999', licenceNo: 'phd-99999' };
-  const ok = await t.call('POST', '/staff/drivers', { token: staff, body: d });
+  const ok = await t.call('POST', '/staff/drivers', { token: manager, body: d });
   assert.equal(ok.status, 201);
   assert.equal(ok.body.driver.licenceNo, 'PHD-99999');
-  const dup = await t.call('POST', '/staff/drivers', { token: staff, body: d });
+  const dup = await t.call('POST', '/staff/drivers', { token: manager, body: d });
   assert.equal(dup.status, 409);
-  const off = await t.call('PATCH', `/staff/drivers/${ok.body.driver.id}`, { token: staff, body: { ...d, active: false } });
+  const off = await t.call('PATCH', `/staff/drivers/${ok.body.driver.id}`, { token: manager, body: { ...d, active: false } });
   assert.equal(off.body.driver.active, false);
-  assert.equal((await t.call('POST', '/staff/drivers', { token: staff, body: { fullName: '', phone: 'x', licenceNo: '' } })).status, 400);
+  assert.equal((await t.call('POST', '/staff/drivers', { token: manager, body: { fullName: '', phone: 'x', licenceNo: '' } })).status, 400);
 });
 
 async function insertBooking({ cabId, driverId = null, start, minutes = 60, status = 'confirmed' }) {
@@ -110,7 +112,7 @@ test('US9.6 cannot deactivate a cab that has upcoming bookings', async () => {
   const { rows } = await t.pool.query("SELECT c.id, c.reg, c.make, c.model, c.colour, c.size_code FROM cabs c JOIN bookings b ON b.cab_id=c.id WHERE b.status<>'cancelled' LIMIT 1");
   const c = rows[0];
   const r = await t.call('PATCH', `/staff/cabs/${c.id}`, {
-    token: staff,
+    token: manager,
     body: { reg: c.reg, make: c.make, model: c.model, colour: c.colour, sizeCode: c.size_code, active: false },
   });
   assert.equal(r.status, 409);

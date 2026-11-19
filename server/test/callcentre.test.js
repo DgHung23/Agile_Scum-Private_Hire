@@ -8,7 +8,7 @@ let cust;
 let customerId;
 before(async () => {
   t = await startServer();
-  staff = await t.login('staff@privatehire.test', 'Staff123!', true);
+  staff = await t.login('staff@privatehire.test', 'StaffPass123!', true);
   cust = await t.login('customer@privatehire.test', 'Customer123!');
   customerId = (await t.pool.query("SELECT id FROM users WHERE email='customer@privatehire.test'")).rows[0].id;
 });
@@ -73,8 +73,8 @@ test('US9.2 verification: needs 2 matching answers AND the "identity verified" c
 });
 
 test('US9.2 verification is per staff member and locks after repeated failures', async () => {
-  const other = (await t.call('POST', '/auth/register', { body: { fullName: 'Lock Test', email: 'lock@example.com', phone: '07700 900555', addressLine: '9 Test Rd', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1' } })).body.user;
-  const admin = await t.login('admin@privatehire.test', 'Admin123!', true);
+  const other = (await t.register({ fullName: 'Lock Test', email: 'lock@example.com', phone: '07700 900555', addressLine: '9 Test Rd', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1234' })).user;
+  const admin = await t.login('manager@privatehire.test', 'ManagerPass123!', true);
   const ok = await t.call('POST', `/staff/customers/${other.id}/verify`, { token: admin, body: { answers: { postcode: 'N1 9GU', phoneLast4: '0555' }, confirmed: true } });
   assert.equal(ok.body.verified, true);
   assert.equal((await t.call('GET', `/staff/customers/${other.id}`, { token: staff })).status, 403, "another staff member's verification does not count");

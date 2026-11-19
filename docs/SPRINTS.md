@@ -112,3 +112,13 @@ demo seeder needed savepoints so an overlapping slot does not abort the transact
 - **Did not go well:** several bugs were test-script races rather than product bugs, which cost time; error-message options
   changed between zod versions and was only noticed in Sprint 2.
 - **Improve next time:** add the traceability table at the start of the project, and run the browser regression crawl in CI.
+
+## Backlog v3 alignment (group report, 19 Nov 2026)
+
+The group report (backlog v3: 101 stories in 12 Epics, 8 actors, story keys `ID-xx` and `N01`-`N39`) widened the scope.
+This work brings the product in line with it, one module per branch `backlog-v3/<module>`, merged to `main` with `--no-ff`.
+Story keys below are the report's Jira keys; `docs/TRACEABILITY.md` maps them to code and tests.
+
+| Module | Branch | Stories | Evidence |
+|---|---|---|---|
+| V1 Accounts and access | `backlog-v3/accounts-access` | ID-11, ID-12, ID-13, ID-15, ID-17, ID-18, ID-20, N01, N02, N03, N04 | 107 API tests; browser run: register, verify link, HttpOnly cookie, role-based staff portal, admin pages at 1366px and 390px |

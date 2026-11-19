@@ -9,8 +9,8 @@ let cust;
 let customerId;
 before(async () => {
   t = await startServer();
-  staff = await t.login('staff@privatehire.test', 'Staff123!', true);
-  admin = await t.login('admin@privatehire.test', 'Admin123!', true);
+  staff = await t.login('staff@privatehire.test', 'StaffPass123!', true);
+  admin = await t.login('manager@privatehire.test', 'ManagerPass123!', true);
   cust = await t.login('customer@privatehire.test', 'Customer123!');
   customerId = (await t.pool.query("SELECT id FROM users WHERE email='customer@privatehire.test'")).rows[0].id;
 });
@@ -57,8 +57,8 @@ test('US7.1 reviews are only allowed once the journey is Completed, with three r
 test('US7.1 only the customer who travelled can review', async () => {
   const b = (await book({ pickupAt: inHours(49) })).body.booking;
   await complete(b);
-  await t.call('POST', '/auth/register', { body: { fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1' } });
-  const other = await t.login('pat@example.com', 'Passw0rd1');
+  await t.register({ fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1234' });
+  const other = await t.login('pat@example.com', 'Passw0rd1234');
   assert.equal((await t.call('POST', `/bookings/${b.id}/review`, { token: other, body: { journeyRating: 1, cabRating: 1, driverRating: 1 } })).status, 404);
   assert.equal((await t.call('POST', `/bookings/${b.id}/review`, { token: staff, body: { journeyRating: 5, cabRating: 5, driverRating: 5 } })).status, 403);
 });
@@ -83,14 +83,14 @@ test('US7.2 staff see reviews and averages by driver and by cab, low ratings fla
 
 let offer;
 test('US10.3 staff create an offer code and email it to chosen customers', async () => {
-  const bad = await t.call('POST', '/staff/offers', { token: staff, body: { title: 'x', discountPct: 80, expiresOn: 'soon', customerIds: [] } });
+  const bad = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'x', discountPct: 80, expiresOn: 'soon', customerIds: [] } });
   assert.equal(bad.status, 400);
   assert.ok(bad.body.error.fields.discountPct && bad.body.error.fields.expiresOn && bad.body.error.fields.customerIds);
-  const past = await t.call('POST', '/staff/offers', { token: staff, body: { title: 'Old offer', discountPct: 10, expiresOn: dateIn(-3), customerIds: [customerId] } });
+  const past = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'Old offer', discountPct: 10, expiresOn: dateIn(-3), customerIds: [customerId] } });
   assert.equal(past.status, 400);
   assert.ok(past.body.error.fields.expiresOn);
 
-  const ok = await t.call('POST', '/staff/offers', { token: staff, body: { code: 'welcome20', title: '20% off your next airport run', discountPct: 20, expiresOn: dateIn(14), customerIds: [customerId] } });
+  const ok = await t.call('POST', '/staff/offers', { token: admin, body: { code: 'welcome20', title: '20% off your next airport run', discountPct: 20, expiresOn: dateIn(14), customerIds: [customerId] } });
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
   assert.equal(ok.body.offer.code, 'WELCOME20');
   assert.equal(ok.body.sent, 1);
@@ -98,7 +98,7 @@ test('US10.3 staff create an offer code and email it to chosen customers', async
   const mail = await t.pool.query("SELECT * FROM notifications WHERE kind='offer' AND to_addr='customer@privatehire.test'");
   assert.equal(mail.rowCount, 1);
   assert.ok(mail.rows[0].body.includes('WELCOME20') && mail.rows[0].body.includes('20%'));
-  assert.equal((await t.call('POST', '/staff/offers', { token: staff, body: { code: 'WELCOME20', title: 'dup offer', discountPct: 5, expiresOn: dateIn(5), customerIds: [customerId] } })).status, 409);
+  assert.equal((await t.call('POST', '/staff/offers', { token: admin, body: { code: 'WELCOME20', title: 'dup offer', discountPct: 5, expiresOn: dateIn(5), customerIds: [customerId] } })).status, 409);
   assert.equal((await t.call('POST', '/staff/offers', { token: cust, body: {} })).status, 403);
 });
 
@@ -114,7 +114,7 @@ test('US10.4 customer sees their offers and can validate a code', async () => {
 });
 
 test('US10.4 a code that belongs to other customers looks like an invalid code', async () => {
-  const other = await t.login('pat@example.com', 'Passw0rd1');
+  const other = await t.login('pat@example.com', 'Passw0rd1234');
   const r = await t.call('POST', '/offers/validate', { token: other, body: { code: 'WELCOME20' } });
   assert.equal(r.status, 400);
   assert.equal(r.body.error.fields.offerCode, 'That offer code is not valid. Check it and try again.');
@@ -163,32 +163,32 @@ test('US10.4 cancelling the booking gives the code back; amending keeps the disc
 });
 
 test('US10.4 expired and deactivated codes are rejected', async () => {
-  await t.call('POST', '/staff/offers', { token: staff, body: { code: 'SOON1234', title: 'Short offer', discountPct: 10, expiresOn: dateIn(1), customerIds: [customerId] } });
+  await t.call('POST', '/staff/offers', { token: admin, body: { code: 'SOON1234', title: 'Short offer', discountPct: 10, expiresOn: dateIn(1), customerIds: [customerId] } });
   await t.pool.query("UPDATE offers SET expires_at = now() - interval '1 hour' WHERE code='SOON1234'");
   const exp = await t.call('POST', '/offers/validate', { token: cust, body: { code: 'SOON1234' } });
   assert.equal(exp.body.error.fields.offerCode, 'That offer code has expired.');
   const id = (await t.pool.query("SELECT id FROM offers WHERE code='WELCOME20'")).rows[0].id;
-  assert.equal((await t.call('POST', `/staff/offers/${id}/deactivate`, { token: staff })).status, 200);
+  assert.equal((await t.call('POST', `/staff/offers/${id}/deactivate`, { token: admin })).status, 200);
   assert.equal((await t.call('POST', '/offers/validate', { token: cust, body: { code: 'WELCOME20' } })).status, 400);
 });
 
 test('R14 recommendations: personal codes for repeat customers, based on what they book most', async () => {
   const before = (await t.pool.query('SELECT count(*)::int AS n FROM offers')).rows[0].n;
-  const r = await t.call('POST', '/staff/offers/recommend', { token: staff, body: { discountPct: 10, validDays: 30, minTrips: 2 } });
+  const r = await t.call('POST', '/staff/offers/recommend', { token: admin, body: { discountPct: 10, validDays: 30, minTrips: 2 } });
   assert.equal(r.status, 201);
   assert.equal(r.body.sent, 1, 'only the demo customer has 2+ trips');
   const after = (await t.pool.query('SELECT count(*)::int AS n FROM offers')).rows[0].n;
   assert.equal(after, before + 1);
   const mail = (await t.pool.query("SELECT body FROM notifications WHERE kind='offer' ORDER BY created_at DESC LIMIT 1")).rows[0];
   assert.match(mail.body, /often book Local journey/);
-  const again = await t.call('POST', '/staff/offers/recommend', { token: staff, body: { minTrips: 2 } });
+  const again = await t.call('POST', '/staff/offers/recommend', { token: admin, body: { minTrips: 2 } });
   assert.equal(again.body.sent, 0, 'not sent twice while a reward is still valid');
 });
 
 /* ---------------- reports ---------------- */
 
 test('US10.2 loyal customers ranked by trips and spend, with tiers', async () => {
-  const r = await t.call('GET', '/staff/customers-loyalty?minTrips=1', { token: staff });
+  const r = await t.call('GET', '/staff/customers-loyalty?minTrips=1', { token: admin });
   assert.equal(r.status, 200);
   const top = r.body.customers[0];
   assert.equal(top.fullName, 'Alex Morgan');
@@ -224,10 +224,10 @@ test('US1.6 forgot password: same answer for known and unknown emails; reset lin
   const token = mail.match(/token=([A-Za-z0-9_-]+)/)[1];
 
   assert.equal((await t.call('POST', '/auth/reset', { body: { token, password: 'short' } })).status, 400);
-  assert.equal((await t.call('POST', '/auth/reset', { body: { token: 'x'.repeat(30), password: 'NewPassw0rd' } })).status, 400);
-  const ok = await t.call('POST', '/auth/reset', { body: { token, password: 'NewPassw0rd' } });
+  assert.equal((await t.call('POST', '/auth/reset', { body: { token: 'x'.repeat(30), password: 'NewPassw0rd123' } })).status, 400);
+  const ok = await t.call('POST', '/auth/reset', { body: { token, password: 'NewPassw0rd123' } });
   assert.equal(ok.status, 200);
-  assert.ok(await t.login('customer@privatehire.test', 'NewPassw0rd'));
+  assert.ok(await t.login('customer@privatehire.test', 'NewPassw0rd123'));
   assert.equal(await t.login('customer@privatehire.test', 'Customer123!'), undefined, 'old password no longer works');
   const reuse = await t.call('POST', '/auth/reset', { body: { token, password: 'AnotherPassw0rd' } });
   assert.equal(reuse.status, 400, 'a reset link works only once');
@@ -239,7 +239,7 @@ test('US1.6 expired reset links are refused', async () => {
   const mail = (await t.pool.query("SELECT body FROM notifications WHERE kind='password_reset' AND to_addr='pat@example.com'")).rows[0].body;
   const token = mail.match(/token=([A-Za-z0-9_-]+)/)[1];
   await t.pool.query("UPDATE password_resets SET expires_at = now() - interval '1 minute'");
-  const r = await t.call('POST', '/auth/reset', { body: { token, password: 'NewPassw0rd' } });
+  const r = await t.call('POST', '/auth/reset', { body: { token, password: 'NewPassw0rd123' } });
   assert.equal(r.status, 400);
   assert.match(r.body.error.message, /expired/);
 });

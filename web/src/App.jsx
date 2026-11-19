@@ -3,7 +3,7 @@ import { PublicLayout, StaffLayout } from './components/Layout.jsx';
 import { RequireAuth } from './auth.jsx';
 import Home from './pages/Home.jsx';
 import ComingSoon from './pages/ComingSoon.jsx';
-import { ForgotPassword, Login, Register, ResetPassword, StaffLogin } from './pages/Auth.jsx';
+import { ForgotPassword, Login, Register, ResetPassword, StaffLogin, Unlock, VerifyEmail } from './pages/Auth.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Account from './pages/Account.jsx';
 import Messages from './pages/Messages.jsx';
@@ -24,8 +24,11 @@ import StaffReviews from './pages/staff/Reviews.jsx';
 import StaffOffers from './pages/staff/Offers.jsx';
 import StaffReports from './pages/staff/Reports.jsx';
 import Contact from './pages/Contact.jsx';
+import { AuditLog, Settings, StaffAccounts } from './pages/staff/Admin.jsx';
 
 const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
+const only = (roles, el) => <RequireAuth roles={roles}>{el}</RequireAuth>;
+const DESK = ['staff', 'manager'];
 
 export default function App() {
   return (
@@ -36,6 +39,8 @@ export default function App() {
         <Route path="register" element={<Register />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
+        <Route path="verify-email" element={<VerifyEmail />} />
+        <Route path="unlock" element={<Unlock />} />
         <Route path="staff/login" element={<StaffLogin />} />
         <Route path="book" element={<Book />} />
         <Route path="services" element={<Services />} />
@@ -53,25 +58,28 @@ export default function App() {
       <Route
         path="staff"
         element={
-          <RequireAuth roles={['staff', 'admin']}>
+          <RequireAuth roles={['staff', 'manager', 'admin']}>
             <StaffLayout />
           </RequireAuth>
         }
       >
-        <Route index element={<StaffHome />} />
-        <Route path="call-desk" element={<CallDesk />} />
-        <Route path="call-desk/new" element={<NewCaller />} />
-        <Route path="call-desk/:id" element={<CallDeskCustomer />} />
-        <Route path="call-desk/:id/book" element={<StaffBook />} />
-        <Route path="dispatch" element={<Dispatch />} />
-        <Route path="enquiries" element={<StaffEnquiries />} />
-        <Route path="reviews" element={<StaffReviews />} />
-        <Route path="offers" element={<StaffOffers />} />
-        <Route path="reports" element={<RequireAuth roles={['admin']}><StaffReports /></RequireAuth>} />
-        <Route path="availability" element={<StaffAvailability />} />
-        <Route path="fleet" element={<StaffFleet />} />
-        <Route path="drivers" element={<StaffDrivers />} />
-        <Route path="outbox" element={<StaffOutbox />} />
+        <Route index element={only(DESK, <StaffHome />)} />
+        <Route path="call-desk" element={only(DESK, <CallDesk />)} />
+        <Route path="call-desk/new" element={only(DESK, <NewCaller />)} />
+        <Route path="call-desk/:id" element={only(DESK, <CallDeskCustomer />)} />
+        <Route path="call-desk/:id/book" element={only(DESK, <StaffBook />)} />
+        <Route path="dispatch" element={only(DESK, <Dispatch />)} />
+        <Route path="enquiries" element={only(DESK, <StaffEnquiries />)} />
+        <Route path="reviews" element={only(DESK, <StaffReviews />)} />
+        <Route path="offers" element={only(['manager'], <StaffOffers />)} />
+        <Route path="reports" element={only(['manager'], <StaffReports />)} />
+        <Route path="availability" element={only(DESK, <StaffAvailability />)} />
+        <Route path="fleet" element={only(DESK, <StaffFleet />)} />
+        <Route path="drivers" element={only(DESK, <StaffDrivers />)} />
+        <Route path="outbox" element={only(DESK, <StaffOutbox />)} />
+        <Route path="admin/staff" element={only(['admin'], <StaffAccounts />)} />
+        <Route path="admin/settings" element={only(['admin'], <Settings />)} />
+        <Route path="admin/audit" element={only(['admin'], <AuditLog />)} />
       </Route>
     </Routes>
   );

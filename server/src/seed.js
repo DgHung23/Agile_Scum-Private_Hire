@@ -6,16 +6,19 @@ import { migrate } from './migrate.js';
 
 /** Demo accounts - safe to run repeatedly (idempotent). Passwords are for local demo only. */
 export const DEMO = {
-  admin: { email: 'admin@privatehire.test', password: 'Admin123!', name: 'George Smith', role: 'admin', phone: '020 7000 0001' },
-  staff: { email: 'staff@privatehire.test', password: 'Staff123!', name: 'Sam Carter', role: 'staff', phone: '020 7000 0002' },
-  customer: { email: 'customer@privatehire.test', password: 'Customer123!', name: 'Alex Morgan', role: 'customer', phone: '07700 900123' },
+  admin: { email: 'admin@privatehire.test', password: 'AdminPass123!', name: 'George Smith', role: 'admin', phone: '020 7000 0001' },
+  manager: { email: 'manager@privatehire.test', password: 'ManagerPass123!', name: 'Priya Shah', role: 'manager', phone: '020 7000 0003' },
+  staff: { email: 'staff@privatehire.test', password: 'StaffPass123!', name: 'Sam Carter', role: 'staff', phone: '020 7000 0002', refundLimit: 50 },
+  customer: { email: 'customer@privatehire.test', password: 'Customer123!', name: 'Alex Morgan', role: 'customer', phone: '07700 900123', secretWord: 'bluebird', marketing: true },
 };
 
 async function upsertUser(u, extra = {}) {
   const hash = await bcrypt.hash(u.password, 10);
+  const secret = u.secretWord ? await bcrypt.hash(u.secretWord, 10) : null;
   await query(
-    `INSERT INTO users (role,email,password_hash,full_name,phone,address_line,city,postcode,notify_pref)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `INSERT INTO users (role,email,password_hash,full_name,phone,address_line,city,postcode,notify_pref,
+                        email_verified,marketing_consent,secret_word_hash,refund_limit)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12)
      ON CONFLICT (email) DO NOTHING`,
     [
       u.role,
@@ -27,6 +30,9 @@ async function upsertUser(u, extra = {}) {
       'London',
       extra.postcode || 'SW1A 2AA',
       extra.notify || 'both',
+      !!u.marketing,
+      secret,
+      u.refundLimit ?? null,
     ],
   );
 }

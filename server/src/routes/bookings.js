@@ -114,10 +114,19 @@ router.post(
   }),
 );
 
+/** ID-11 criterion 5: the email address must be verified before the first online booking. */
+function requireVerified(req, _res, next) {
+  if (!req.user.email_verified) {
+    return next(new HttpError(403, 'Please verify your email address before you book. We can send you a new link.', 'email_not_verified'));
+  }
+  next();
+}
+
 /** US3.5: confirm an online booking. Priced and checked again on the server. */
 router.post(
   '/',
   ...customerOnly,
+  requireVerified,
   body(createSchema),
   wrap(async (req, res) => {
     let out;
