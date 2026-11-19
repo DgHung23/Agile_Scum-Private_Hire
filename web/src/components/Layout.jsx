@@ -133,7 +133,7 @@ export function Footer() {
         <div className="footer-cols">
           <div>
             <div className="brand" style={{ color: '#fff', marginBottom: 12 }}>
-              <span className="brand-mark" style={{ background: '#fff', color: '#000' }}>
+              <span className="brand-mark" style={{ background: '#fff', color: '#ff385c' }}>
                 <Icon name="car" size={18} />
               </span>
               PrivateHire

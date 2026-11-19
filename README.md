@@ -62,7 +62,8 @@ docs/     SPRINTS.md (sprint plan + delivery log), TRACEABILITY.md (story -> cod
 ## Tech
 
 Node 22, Express 5, PostgreSQL 16 (`pg`), zod validation, bcrypt + JWT, React 18 + React Router 7, Vite. Design system:
-black/white pill language from the Uber reference, soft cards and calm forms from the Airbnb reference.
+layout and pill-shaped controls from the Uber reference, colour palette from the Airbnb reference (Rausch `#ff385c` for
+primary actions, ink `#222222` text, soft grey surfaces).
 
 ## How it was built
 

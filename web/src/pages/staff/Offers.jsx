@@ -92,7 +92,7 @@ export default function StaffOffers() {
               <tbody>
                 {loyal.data?.customers.map((c) => (
                   <tr key={c.id}>
-                    <td><input type="checkbox" aria-label={`Select ${c.fullName}`} checked={picked.has(c.id)} onChange={() => toggle(c.id)} style={{ width: 20, height: 20, accentColor: '#000' }} /></td>
+                    <td><input type="checkbox" aria-label={`Select ${c.fullName}`} checked={picked.has(c.id)} onChange={() => toggle(c.id)} style={{ width: 20, height: 20, accentColor: '#ff385c' }} /></td>
                     <td className="strong">{c.fullName}</td>
                     <td><span className={`badge ${TIER[c.tier]}`}>{c.tier}</span></td>
                     <td>{c.trips}</td>

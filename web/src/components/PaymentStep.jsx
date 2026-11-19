@@ -95,7 +95,7 @@ export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, 
                 <div className="label">Your saved cards</div>
                 {cards.map((c) => (
                   <label key={c.id} className={`option ${choice === c.id ? 'selected' : ''}`} style={{ cursor: c.expired ? 'not-allowed' : 'pointer', opacity: c.expired ? 0.5 : 1 }}>
-                    <input type="radio" name="card-choice" checked={choice === c.id} disabled={c.expired} onChange={() => setChoice(c.id)} style={{ accentColor: '#000', width: 20, height: 20 }} />
+                    <input type="radio" name="card-choice" checked={choice === c.id} disabled={c.expired} onChange={() => setChoice(c.id)} style={{ accentColor: '#ff385c', width: 20, height: 20 }} />
                     <span className="grow">
                       <div className="o-title">{c.brandLabel} ending {c.last4}</div>
                       <div className="o-sub">{c.expired ? 'Expired' : `Expires ${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}`}</div>
@@ -103,7 +103,7 @@ export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, 
                   </label>
                 ))}
                 <label className={`option ${choice === 'new' ? 'selected' : ''}`}>
-                  <input type="radio" name="card-choice" checked={choice === 'new'} onChange={() => setChoice('new')} style={{ accentColor: '#000', width: 20, height: 20 }} />
+                  <input type="radio" name="card-choice" checked={choice === 'new'} onChange={() => setChoice('new')} style={{ accentColor: '#ff385c', width: 20, height: 20 }} />
                   <span className="o-title">Use a different card</span>
                 </label>
               </div>
