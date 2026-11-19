@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
+import crypto from 'node:crypto';
+import { z } from 'zod';
 import { query, tx } from '../db.js';
 import { config } from '../config.js';
 import { body, wrap } from '../middleware/validate.js';
 import { authenticate, serializeUser, signToken } from '../middleware/auth.js';
 import { badRequest, HttpError } from '../errors.js';
 import {
+  emailSchema,
+  passwordSchema,
   changePasswordSchema,
   loginSchema,
   normalisePostcode,
@@ -14,6 +18,8 @@ import {
   registerSchema,
 } from '../schemas.js';
 import { sendEmail, templates } from '../services/notify.js';
+
+const sha256 = (t) => crypto.createHash('sha256').update(t).digest('hex');
 
 export const router = Router();
 
@@ -152,3 +158,68 @@ router.post(
 
 // Logout is stateless (JWT): the client discards the token. Endpoint exists so apps have one call to make.
 router.post('/logout', (_req, res) => res.json({ ok: true }));
+
+/* ---------- US1.6: reset a forgotten password by email ---------- */
+
+/** Always answers the same way, so nobody can use this to find out who has an account. */
+router.post(
+  '/forgot',
+  loginLimiter,
+  body(z.object({ email: emailSchema })),
+  wrap(async (req, res) => {
+    const { rows } = await query('SELECT * FROM users WHERE email = $1 AND is_active', [req.body.email]);
+    const u = rows[0];
+    if (u) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      await query("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES ($1,$2, now() + interval '1 hour')", [sha256(token), u.id]);
+      await sendEmail({
+        userId: u.id,
+        to: u.email,
+        kind: 'password_reset',
+        subject: 'Reset your PrivateHire Cars password',
+        body: `Hello ${u.full_name},
+
+We received a request to reset your password. Use this link within 1 hour:
+
+${config.publicUrl}/reset-password?token=${token}
+
+If you did not ask for this you can ignore this email - your password has not changed.
+
+The PrivateHire Cars team`,
+      });
+    }
+    res.json({ message: 'If that email is registered, we have sent you a link to reset your password.' });
+  }),
+);
+
+router.post(
+  '/reset',
+  loginLimiter,
+  body(z.object({ token: z.string({ error: 'This reset link is not valid' }).min(20, 'This reset link is not valid'), password: passwordSchema })),
+  wrap(async (req, res) => {
+    const hash = sha256(req.body.token);
+    await tx(async (db) => {
+      const { rows } = await db.query(
+        'SELECT * FROM password_resets WHERE token_hash=$1 AND used_at IS NULL AND expires_at > now() FOR UPDATE',
+        [hash],
+      );
+      const r = rows[0];
+      if (!r) throw new HttpError(400, 'This reset link is invalid or has expired. Please ask for a new one.', 'bad_token');
+      const { rows: users } = await db.query('SELECT * FROM users WHERE id=$1', [r.user_id]);
+      await db.query('UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2', [await bcrypt.hash(req.body.password, 10), r.user_id]);
+      await db.query('UPDATE password_resets SET used_at=now() WHERE user_id=$1 AND used_at IS NULL', [r.user_id]);
+      await sendEmail({
+        userId: r.user_id,
+        to: users[0].email,
+        kind: 'password_changed',
+        subject: 'Your PrivateHire Cars password was changed',
+        body: `Hello ${users[0].full_name},
+
+Your password has just been changed. If this was not you, contact us straight away on 020 7000 0000.
+
+The PrivateHire Cars team`,
+      }, db);
+    });
+    res.json({ ok: true });
+  }),
+);

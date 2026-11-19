@@ -227,6 +227,7 @@ const staffBookingSchema = journeySchema.extend({
   sizeCode: z.string({ error: 'Choose a cab size' }).min(1, 'Choose a cab size'),
   notifyPref: z.enum(['email', 'text', 'both']).default('email'),
   notes: z.string().trim().max(300).optional(),
+  offerCode: z.string().trim().max(30).optional(),
   payment: staffPaymentSchema,
 });
 

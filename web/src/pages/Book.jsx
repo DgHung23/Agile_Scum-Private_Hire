@@ -10,7 +10,7 @@ import PaymentStep from '../components/PaymentStep.jsx';
 import { SERVICE_ICONS } from './Home.jsx';
 
 const DRAFT_KEY = 'ph_booking_draft';
-const BLANK = { serviceCode: '', pickup: '', destination: '', date: '', time: '', passengers: 1, hours: 4, sizeCode: '', notifyPref: 'email' };
+const BLANK = { serviceCode: '', pickup: '', destination: '', date: '', time: '', passengers: 1, hours: 4, sizeCode: '', notifyPref: 'email', offerCode: '' };
 
 const loadDraft = () => {
   try {
@@ -133,13 +133,14 @@ export default function Book() {
 
   const pickupIso = () => londonToIso(draft.date, draft.time);
 
-  const journeyBody = () => ({
+  const journeyBody = (offerCode = draft.offerCode) => ({
     serviceCode: draft.serviceCode,
     pickup: draft.pickup,
     destination: service?.isHourly ? '' : draft.destination,
     pickupAt: pickupIso() || '',
     passengers: Number(draft.passengers),
     ...(service?.isHourly ? { hours: Number(draft.hours) } : {}),
+    ...(offerCode ? { offerCode } : {}),
   });
 
   const validateJourney = () => {
@@ -157,7 +158,7 @@ export default function Book() {
     return e;
   };
 
-  const fetchQuote = async () => {
+  const fetchQuote = async (offerOverride) => {
     setError('');
     setAlt(null);
     const e = validateJourney();
@@ -165,7 +166,7 @@ export default function Book() {
     if (Object.keys(e).length) return false;
     setBusy(true);
     try {
-      const q = await api.post('/bookings/quote', journeyBody());
+      const q = await api.post('/bookings/quote', journeyBody(offerOverride));
       setQuote(q);
       // keep the chosen size only if it still fits and is free
       const keep = q.sizes.find((s) => s.code === draft.sizeCode && s.fitsPassengers && s.available > 0);
@@ -218,6 +219,11 @@ export default function Book() {
         setAlt(err.alternatives || null);
       } else if (err.code === 'payment_declined') {
         if (payment.method === 'paypal') setDraft((d) => ({ ...d, paypalToken: '', paypalPayer: '' }));
+      } else if (err.fields?.offerCode) {
+        // the code was used or expired since it was applied: drop it and stay on the review step
+        setDraft((d) => ({ ...d, offerCode: '' }));
+        await fetchQuote('');
+        setStep(3);
       } else if (err.fields && Object.keys(err.fields).length) {
         const payF = Object.fromEntries(Object.entries(err.fields).filter(([k]) => k.startsWith('payment.')));
         if (Object.keys(payF).length) setPayErrors(payF);
@@ -229,6 +235,26 @@ export default function Book() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const [offerInput, setOfferInput] = useState('');
+  const [offerError, setOfferError] = useState('');
+  const applyOffer = async () => {
+    setOfferError('');
+    if (!offerInput.trim()) return setOfferError('Enter an offer code');
+    try {
+      await api.post('/offers/validate', { code: offerInput });
+      if (await fetchQuote(offerInput.trim())) {
+        setDraft((d) => ({ ...d, offerCode: offerInput.trim() }));
+        setOfferInput('');
+      }
+    } catch (err) {
+      setOfferError(err.fields?.offerCode || err.message);
+    }
+  };
+  const removeOffer = async () => {
+    setDraft((d) => ({ ...d, offerCode: '' }));
+    await fetchQuote('');
   };
 
   const takeAlternativeSize = async (code) => {
@@ -410,8 +436,28 @@ export default function Book() {
               </div>
 
               <div className="card stack">
+                <h3>Offer code</h3>
+                {quote.offer ? (
+                  <div className="row-between">
+                    <span><span className="badge green"><Icon name="check" size={12} /> {quote.offer.code}</span> {quote.offer.discountPct}% off applied</span>
+                    <button className="btn btn-ghost btn-sm" onClick={removeOffer}>Remove</button>
+                  </div>
+                ) : user?.role === 'customer' ? (
+                  <div className="stack-sm">
+                    <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                      <div className="grow">
+                        <TextField label="Have an offer code?" value={offerInput} error={offerError} placeholder="e.g. PH7K2M9Q" autoComplete="off"
+                          onChange={(e) => { setOfferInput(e.target.value.toUpperCase()); setOfferError(''); }} />
+                      </div>
+                      <button className="btn btn-secondary" style={{ marginTop: 26 }} onClick={applyOffer} type="button">Apply</button>
+                    </div>
+                  </div>
+                ) : <p className="small muted">Log in to use an offer code.</p>}
+              </div>
+
+              <div className="card stack">
                 <h3>Price</h3>
-                <PriceBreakdown price={size.price} discountPct={quote.onlineDiscountPct} />
+                <PriceBreakdown price={size.price} discountPct={quote.onlineDiscountPct} offerCode={quote.offer?.code} />
               </div>
 
               {!user ? (
