@@ -31,9 +31,107 @@ async function upsertUser(u, extra = {}) {
   );
 }
 
+/* Known places: name, kind, lat, lng. Used for autocomplete and distance estimates. */
+const LOCATIONS = [
+  ['Heathrow Airport (Terminal 2)', 'airport', 51.47, -0.4543],
+  ['Heathrow Airport (Terminal 5)', 'airport', 51.4723, -0.4875],
+  ['Gatwick Airport (South Terminal)', 'airport', 51.156, -0.1611],
+  ['London City Airport', 'airport', 51.5053, 0.0553],
+  ['Stansted Airport', 'airport', 51.886, 0.2389],
+  ['Luton Airport', 'airport', 51.8747, -0.3683],
+  ["King's Cross St Pancras", 'station', 51.5308, -0.1238],
+  ['Paddington Station', 'station', 51.5154, -0.1755],
+  ['Waterloo Station', 'station', 51.5031, -0.1132],
+  ['Victoria Station', 'station', 51.4952, -0.1441],
+  ['Euston Station', 'station', 51.5282, -0.1337],
+  ['Liverpool Street Station', 'station', 51.5178, -0.0823],
+  ['London Bridge Station', 'station', 51.5052, -0.0864],
+  ['Marylebone Station', 'station', 51.5225, -0.1631],
+  ['The Ritz London', 'hotel', 51.5071, -0.1416],
+  ['The Savoy', 'hotel', 51.5101, -0.1205],
+  ['Hilton London Park Lane', 'hotel', 51.5048, -0.1511],
+  ['The Dorchester', 'hotel', 51.5072, -0.1527],
+  ["Claridge's", 'hotel', 51.5122, -0.1473],
+  ['Premier Inn London County Hall', 'hotel', 51.5016, -0.1195],
+  ['Park Plaza Westminster Bridge', 'hotel', 51.5013, -0.117],
+  ['Shangri-La The Shard', 'hotel', 51.5045, -0.0865],
+  ['Buckingham Palace', 'landmark', 51.5014, -0.1419],
+  ['Tower of London', 'landmark', 51.5081, -0.0759],
+  ['Wembley Stadium', 'landmark', 51.556, -0.2795],
+  ['The O2 Arena', 'landmark', 51.503, 0.0032],
+  ['Canary Wharf', 'area', 51.5054, -0.0235],
+  ['Westminster', 'area', 51.4995, -0.1248],
+  ['Piccadilly Circus', 'landmark', 51.51, -0.1347],
+  ['Camden Town', 'area', 51.539, -0.1426],
+  ['Covent Garden', 'area', 51.5129, -0.1243],
+  ['Oxford Circus', 'landmark', 51.5152, -0.1415],
+  ['Stratford (Westfield)', 'area', 51.5434, -0.0092],
+  ['Greenwich', 'area', 51.4826, -0.0077],
+  ['Richmond', 'area', 51.4613, -0.3037],
+  ['Hampstead', 'area', 51.556, -0.178],
+  ['Brixton', 'area', 51.4613, -0.1156],
+  ['Shoreditch', 'area', 51.5265, -0.078],
+  ['Oxford', 'area', 51.752, -1.2577],
+  ['Cambridge', 'area', 52.2053, 0.1218],
+  ['Brighton', 'area', 50.8225, -0.1372],
+  ['Bristol', 'area', 51.4545, -2.5879],
+  ['Birmingham', 'area', 52.4862, -1.8904],
+  ['Cardiff', 'area', 51.4816, -3.1791],
+  ['Manchester', 'area', 53.4808, -2.2426],
+  ['Canterbury', 'area', 51.2802, 1.0789],
+  ['Southampton', 'area', 50.9097, -1.4044],
+  ['Reading', 'area', 51.4543, -0.9781],
+];
+
+const CAB_MODELS = {
+  saloon: [['Toyota', 'Prius'], ['Skoda', 'Octavia'], ['Ford', 'Mondeo']],
+  estate: [['Skoda', 'Octavia Estate'], ['Toyota', 'Corolla Touring'], ['Ford', 'Mondeo Estate']],
+  mpv6: [['Ford', 'Galaxy'], ['VW', 'Touran']],
+  mpv7: [['Toyota', 'Proace Verso'], ['Mercedes', 'V-Class'], ['VW', 'Sharan']],
+  minibus: [['Ford', 'Transit Minibus'], ['Mercedes', 'Vito Tourer']],
+};
+const FLEET_PLAN = [['saloon', 12], ['estate', 6], ['mpv6', 4], ['mpv7', 5], ['minibus', 3]];
+const COLOURS = ['Black', 'Silver', 'White', 'Grey', 'Blue', 'Black', 'Silver'];
+const LETTERS = 'ABCDEFGHJKLMNOPRSTUVWXY';
+
+const DRIVER_NAMES = [
+  'Mohammed Khan', 'Olivia Brown', 'Kwame Mensah', 'Piotr Nowak', 'Aisha Rahman', 'Daniel Murphy', 'Sofia Rossi',
+  'Tariq Hussain', 'Grace Okafor', 'Liam Walker', 'Anita Patel', 'Marek Kowalski', 'Hannah Clarke', 'Yusuf Ali',
+  'Chloe Evans', 'Ivan Petrov', 'Fatima Begum', 'George Adams', 'Ruth Campbell', 'Samir Haddad',
+];
+
+export async function seedLocations() {
+  for (const [name, kind, lat, lng] of LOCATIONS) {
+    await query('INSERT INTO locations (name, kind, lat, lng) VALUES ($1,$2,$3,$4) ON CONFLICT (name) DO NOTHING', [name, kind, lat, lng]);
+  }
+}
+
+export async function seedFleet() {
+  let n = 0;
+  for (const [size, count] of FLEET_PLAN) {
+    for (let i = 0; i < count; i++, n++) {
+      const [make, model] = CAB_MODELS[size][i % CAB_MODELS[size].length];
+      const reg = `${LETTERS[(n * 3) % 23]}${LETTERS[(n * 5 + 2) % 23]}${21 + (n % 4)} ${LETTERS[(n * 7) % 23]}${LETTERS[(n * 11 + 3) % 23]}${LETTERS[(n * 13 + 5) % 23]}`;
+      await query(
+        `INSERT INTO cabs (reg, make, model, colour, size_code) VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT DO NOTHING`,
+        [reg, make, model, COLOURS[n % COLOURS.length], size],
+      );
+    }
+  }
+  for (let i = 0; i < DRIVER_NAMES.length; i++) {
+    await query(
+      `INSERT INTO drivers (full_name, phone, licence_no) VALUES ($1,$2,$3) ON CONFLICT (licence_no) DO NOTHING`,
+      [DRIVER_NAMES[i], `07700 9${String(10000 + i * 37).slice(-5)}`, `PHD-${10001 + i}`],
+    );
+  }
+}
+
 export async function seed() {
   for (const u of Object.values(DEMO)) await upsertUser(u);
-  console.log('[seed] demo accounts ready');
+  await seedLocations();
+  await seedFleet();
+  console.log('[seed] demo accounts, places, fleet and drivers ready');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
