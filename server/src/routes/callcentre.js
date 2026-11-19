@@ -8,7 +8,7 @@ import { body, queryOf, wrap } from '../middleware/validate.js';
 import { HttpError, notFound } from '../errors.js';
 import { normalisePostcode, profileFields } from '../schemas.js';
 import { sendEmail, templates } from '../services/notify.js';
-import { createBooking, getSettings, loadBookingRow, serializeBooking } from '../services/booking.js';
+import { createBooking, findAlternatives, getSettings, loadBookingRow, prepareJourney, serializeBooking } from '../services/booking.js';
 import { cancelBooking, amendBooking } from '../services/changes.js';
 import { recordDeclined, serializePayment } from '../services/payments.js';
 import { payStaff, staffPaymentSchema } from '../services/checkout.js';
@@ -311,15 +311,22 @@ router.get(
   }),
 );
 
-const reasonSchema = z.object({ reason: z.string().trim().max(300).optional() });
+// ID-77: staff cancel or amend for a caller at any time, always with a reason that is logged.
+const reasonSchema = z.object({
+  reason: z.string({ error: 'Give a reason' }).trim().min(3, 'Give a reason').max(300),
+  lateFee: z.boolean().optional(), // N18: keep the late-cancellation fee when inside 24 hours
+});
 
-/** Staff may cancel at any time (the 24h rule binds customers only). */
 router.post(
   '/bookings/:id/cancel',
   body(reasonSchema),
   wrap(async (req, res) => {
     checkId(req.params.id);
-    const out = await tx((db) => cancelBooking(db, { id: req.params.id, actor: req.user, reason: req.body.reason || null, override: true }));
+    const out = await tx(async (db) => {
+      const r = await cancelBooking(db, { id: req.params.id, actor: req.user, reason: req.body.reason, override: true, lateFee: !!req.body.lateFee });
+      await audit(db, req, 'booking.cancel', 'booking', req.params.id, { reason: req.body.reason, lateFee: !!req.body.lateFee, refund: r.refund?.amount || 0 });
+      return r;
+    });
     res.json({
       booking: serializeBooking(out.booking, { cancelWindowHours: out.settings.cancelWindowHours, forStaff: true }),
       refund: out.refund ? serializePayment(out.refund) : null,
@@ -331,9 +338,12 @@ const amendSchema = z.object({
   pickup: z.string().trim().min(1, 'Pickup location is required').max(200),
   destination: z.string().trim().max(200).optional().default(''),
   pickupAt: z.string().min(1, 'Choose a date and time'),
-  passengers: z.coerce.number().int().min(1).max(16),
+  passengers: z.coerce.number().int().min(1).max(8),
+  luggage: z.coerce.number().int().min(0).max(12).optional(),
   hours: z.coerce.number().int().optional(),
+  packageCode: z.string().optional(),
   sizeCode: z.string().min(1, 'Choose a cab size'),
+  reason: z.string().trim().max(300).optional(),
 });
 
 router.post(
@@ -341,7 +351,54 @@ router.post(
   body(amendSchema),
   wrap(async (req, res) => {
     checkId(req.params.id);
-    const out = await tx((db) => amendBooking(db, { id: req.params.id, actor: req.user, input: req.body, override: true }));
+    const out = await tx(async (db) => {
+      const r = await amendBooking(db, { id: req.params.id, actor: req.user, input: req.body, override: true });
+      await audit(db, req, 'booking.amend', 'booking', req.params.id, { reason: req.body.reason || null, difference: r.plan.difference });
+      return r;
+    });
     res.json({ booking: serializeBooking(out.booking, { cancelWindowHours: out.settings.cancelWindowHours, forStaff: true }), difference: out.plan.difference });
+  }),
+);
+
+/**
+ * ID-78: the company cancels a booking (for example no cab is free after a breakdown). Staff first offer another time
+ * or size (see /alternatives and the amend call); only if the customer declines is the booking cancelled with a full
+ * refund and an apology email.
+ */
+router.get(
+  '/bookings/:id/alternatives',
+  wrap(async (req, res) => {
+    checkId(req.params.id);
+    const row = await loadBookingRow(null, req.params.id);
+    if (!row) throw notFound('Booking not found');
+    const settings = await getSettings();
+    const j = await prepareJourney(null, {
+      serviceCode: row.service_code, pickup: row.pickup, destination: row.service_code === 'daily_hire' ? '' : row.destination,
+      pickupAt: new Date(Math.max(new Date(row.pickup_at).getTime(), Date.now() + 31 * 60_000)).toISOString(),
+      passengers: row.passengers, luggage: row.luggage, accessibility: row.accessibility,
+      packageCode: row.package_code || undefined, hours: row.package_code ? undefined : row.hours,
+    }, { settings, forAmend: true });
+    const sizes = (await query('SELECT * FROM cab_sizes ORDER BY sort')).rows;
+    res.json({ alternatives: await findAlternatives(null, j, sizes, row.size_code, settings) });
+  }),
+);
+
+router.post(
+  '/bookings/:id/company-cancel',
+  body(z.object({
+    reason: z.string({ error: 'Give a reason' }).trim().min(3, 'Give a reason').max(300),
+    alternativesOffered: z.literal(true, { error: 'Offer the customer another time or cab size first' }),
+  })),
+  wrap(async (req, res) => {
+    checkId(req.params.id);
+    const out = await tx(async (db) => {
+      const r = await cancelBooking(db, { id: req.params.id, actor: req.user, reason: req.body.reason, override: true, company: true });
+      await audit(db, req, 'booking.company_cancel', 'booking', req.params.id, { reason: req.body.reason, refund: r.refund?.amount || 0 });
+      return r;
+    });
+    res.json({
+      booking: serializeBooking(out.booking, { cancelWindowHours: out.settings.cancelWindowHours, forStaff: true }),
+      refund: out.refund ? serializePayment(out.refund) : null,
+    });
   }),
 );

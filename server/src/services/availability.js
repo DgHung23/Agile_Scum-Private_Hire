@@ -48,6 +48,8 @@ export async function findAvailableCabs(db, { start, end, sizeCode = null, exclu
       WHERE c.active AND c.status = 'available'
         AND ($3::text IS NULL OR c.size_code = $3)
         AND (NOT $5::boolean OR c.wheelchair_accessible)
+        -- ID-65: a vehicle with an expired document (licence, insurance, MOT) cannot be offered or assigned
+        AND NOT EXISTS (SELECT 1 FROM documents x WHERE x.owner_type='cab' AND x.owner_id=c.id AND x.expires_on < ($2::timestamptz)::date)
         AND NOT EXISTS (
           SELECT 1 FROM bookings b
            WHERE b.cab_id = c.id AND b.status NOT IN ${RELEASED}
@@ -65,6 +67,8 @@ export async function findAvailableDrivers(db, { start, end, excludeBookingId = 
     `SELECT d.*
        FROM drivers d
       WHERE d.active
+        -- ID-66: a driver with an expired document cannot be assigned
+        AND NOT EXISTS (SELECT 1 FROM documents x WHERE x.owner_type='driver' AND x.owner_id=d.id AND x.expires_on < ($2::timestamptz)::date)
         AND NOT EXISTS (
           SELECT 1 FROM bookings b
            WHERE b.driver_id = d.id AND b.status NOT IN ${RELEASED}

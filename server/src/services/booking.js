@@ -332,6 +332,7 @@ export function serializeBooking(row, { cancelWindowHours = 24, forStaff = false
           }
         : null,
     etaMinutes: row.eta_minutes,
+    lateMinutes: row.late_minutes ?? null,
     arrivalSmsSent: !!row.arrival_sms_sent_at,
     paymentStatus: row.payment_status ?? null,
     modifiable: modifiable(row, cancelWindowHours),

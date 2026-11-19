@@ -50,33 +50,56 @@ function assertChangeable(row, settings, { override }) {
  * Cancel a booking and refund what was paid (US8.1). Customers are bound by the 24-hour window; staff may override.
  * The cab and driver are freed automatically because cancelled bookings are excluded from the overlap constraints.
  */
-export async function cancelBooking(db, { id, actor, reason = null, override = false }) {
+export async function cancelBooking(db, { id, actor, reason = null, override = false, lateFee = false, company = false }) {
   const settings = await getSettings(db);
   const locked = await db.query('SELECT id FROM bookings WHERE id=$1 FOR UPDATE', [id]);
   if (!locked.rowCount) throw new HttpError(404, 'Booking not found', 'not_found');
   const row = await loadBookingRow(db, id);
-  assertChangeable(row, settings, { override });
+  // ID-45: a driver more than 15 minutes late lets the customer cancel free of charge, even inside 24 hours.
+  const lateLimit = Number((await db.query("SELECT value FROM settings WHERE key='driver_late_minutes'")).rows[0]?.value || 15);
+  const driverLate = Number(row.late_minutes || 0) > lateLimit && ['assigned', 'on_route'].includes(row.status);
+  if (driverLate) {
+    if (!['confirmed', 'assigned', 'on_route'].includes(row.status)) assertChangeable(row, settings, { override });
+  } else assertChangeable(row, settings, { override });
 
   const paid = await netPaid(db, id);
+  // N18: staff may keep a fair late-cancellation fee when cancelling inside the window for a customer.
+  const inside = new Date(row.pickup_at).getTime() - Date.now() < settings.cancelWindowHours * 3600_000;
+  const feePct = lateFee && inside && !company && !driverLate
+    ? Number((await db.query("SELECT value FROM settings WHERE key='late_cancel_fee_pct'")).rows[0]?.value || 50)
+    : 0;
+  const fee = r2((paid * feePct) / 100);
+  const refundAmount = r2(paid - fee);
   await db.query('DELETE FROM coupon_redemptions WHERE booking_id=$1', [id]); // the coupon returns to the wallet (report Table 17)
   await db.query(
-    `UPDATE bookings SET status='cancelled', cancelled_at=now(), cancel_reason=$2, driver_id=NULL, eta_minutes=NULL,
-            payment_status=CASE WHEN $3::numeric > 0 THEN 'refunded' ELSE payment_status END, updated_at=now()
+    `UPDATE bookings SET status=$4, cancelled_at=now(), cancel_reason=$2, driver_id=NULL, eta_minutes=NULL,
+            payment_status=CASE WHEN $3::numeric > 0 THEN (CASE WHEN $5::numeric > 0 THEN 'partially_refunded' ELSE 'refunded' END) ELSE payment_status END,
+            updated_at=now()
       WHERE id=$1`,
-    [id, reason, paid],
+    [id, reason, refundAmount, company ? 'company_cancelled' : 'cancelled', fee],
   );
+  await db.query('UPDATE assignments SET ended_at=now(), end_reason=$2 WHERE booking_id=$1 AND ended_at IS NULL', [id, company ? 'company cancelled' : 'cancelled']);
   const refund = await refundPayment(db, {
     bookingId: id,
     userId: row.customer_id,
-    amount: paid,
-    note: `Cancellation of ${row.ref}${actor.role !== 'customer' ? ' by staff' : ''}`,
+    amount: refundAmount,
+    note: `${company ? 'Company cancellation' : 'Cancellation'} of ${row.ref}${actor.role !== 'customer' ? ' by staff' : ''}${fee ? ` (late-cancellation fee ${gbp(fee)} kept)` : ''}`,
   });
-  if (refund) await issueAndSend(db, refund); // FR-6.8: a credit note joins the receipt history
+  if (refund) {
+    await db.query('UPDATE payments SET reason=$2, created_by=$3 WHERE id=$1', [refund.id, reason, actor.id]);
+    await issueAndSend(db, refund); // FR-6.8: a credit note joins the receipt history
+  }
+  await db.query(
+    'INSERT INTO status_events (booking_id, status, reason, by_user, by_role, details) VALUES ($1,$2,$3,$4,$5,$6)',
+    [id, company ? 'company_cancelled' : 'cancelled', reason, actor.id, actor.role, { refund: refundAmount, fee, driverLate }],
+  );
 
   const lines = [
     `Hello ${row.customer_name},`,
     '',
-    `Your booking ${row.ref} has been cancelled.`,
+    company
+      ? `We are very sorry: we have had to cancel your booking ${row.ref}${reason ? ` (${reason})` : ''}. You get a full refund.`
+      : `Your booking ${row.ref} has been cancelled.`,
     '',
     `Journey: ${row.pickup} to ${row.destination}`,
     `Was due: ${fmt(row.pickup_at)}`,
@@ -85,7 +108,8 @@ export async function cancelBooking(db, { id, actor, reason = null, override = f
   if (refund) {
     lines.push(
       `A refund of ${gbp(refund.amount)} has been issued to ${describeMethod(refund)}.`,
-      'It can take 3-5 working days to appear on your statement.',
+      'It can take 3 to 5 working days to appear on your statement.',
+      ...(fee ? [`A late-cancellation fee of ${gbp(fee)} was kept, as the booking was cancelled less than ${settings.cancelWindowHours} hours before pickup.`] : []),
     );
   } else lines.push('There was nothing to refund on this booking.');
   lines.push('', 'We hope to see you again soon.', '', 'The Private Hire Cars team');

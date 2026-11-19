@@ -12,6 +12,8 @@ import Services from './pages/Services.jsx';
 import { PayPending, TripDetail, Trips } from './pages/Trips.jsx';
 import Receipt, { ReceiptById, Receipts, StaffReceipt } from './pages/Receipt.jsx';
 import Track from './pages/Track.jsx';
+import Driver from './pages/Driver.jsx';
+import BookingManage from './pages/staff/BookingManage.jsx';
 import Amend from './pages/Amend.jsx';
 import ProviderMock from './pages/PayPalMock.jsx';
 import Terms from './pages/Terms.jsx';
@@ -61,6 +63,7 @@ export default function App() {
         <Route path="receipts" element={customer(<Receipts />)} />
         <Route path="receipts/:rid" element={customer(<ReceiptById />)} />
         <Route path="track/:token" element={<Track />} />
+        <Route path="driver" element={<RequireAuth roles={['driver']}><Driver /></RequireAuth>} />
         <Route path="*" element={<ComingSoon title="Page coming soon" />} />
       </Route>
       <Route
@@ -87,6 +90,7 @@ export default function App() {
         <Route path="drivers" element={only(DESK, <StaffDrivers />)} />
         <Route path="outbox" element={only(DESK, <StaffOutbox />)} />
         <Route path="receipts/:rid" element={only(DESK, <StaffReceipt />)} />
+        <Route path="bookings/:id" element={only(DESK, <BookingManage />)} />
         <Route path="admin/staff" element={only(['admin'], <StaffAccounts />)} />
         <Route path="admin/settings" element={only(['admin'], <Settings />)} />
         <Route path="admin/audit" element={only(['admin'], <AuditLog />)} />
