@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Account from './pages/Account.jsx';
 import Messages from './pages/Messages.jsx';
 import StaffHome, { StaffOutbox } from './pages/staff/StaffHome.jsx';
+import { StaffDrivers, StaffFleet } from './pages/staff/Fleet.jsx';
 
 const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
 
@@ -33,6 +34,8 @@ export default function App() {
         }
       >
         <Route index element={<StaffHome />} />
+        <Route path="fleet" element={<StaffFleet />} />
+        <Route path="drivers" element={<StaffDrivers />} />
         <Route path="outbox" element={<StaffOutbox />} />
       </Route>
     </Routes>
