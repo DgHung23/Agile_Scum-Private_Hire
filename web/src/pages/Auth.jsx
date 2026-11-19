@@ -15,7 +15,12 @@ function LoginForm({ staff }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to={isStaffRole(user) ? '/staff' : '/dashboard'} replace />;
+  const destFor = (u) => {
+    const from = loc.state?.from;
+    if (from && !!isStaffRole(u) === from.startsWith('/staff')) return from;
+    return isStaffRole(u) ? '/staff' : '/dashboard';
+  };
+  if (user) return <Navigate to={destFor(user)} replace />;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -26,8 +31,7 @@ function LoginForm({ staff }) {
     setBusy(true);
     try {
       const u = await login(f.email.trim(), f.password, { staff });
-      const dest = loc.state?.from && (isStaffRole(u) === loc.state.from.startsWith('/staff')) ? loc.state.from : null;
-      nav(dest || (isStaffRole(u) ? '/staff' : '/dashboard'), { replace: true });
+      nav(destFor(u), { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

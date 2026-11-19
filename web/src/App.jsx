@@ -7,6 +7,9 @@ import { Login, Register, StaffLogin } from './pages/Auth.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Account from './pages/Account.jsx';
 import Messages from './pages/Messages.jsx';
+import Book from './pages/Book.jsx';
+import Services from './pages/Services.jsx';
+import { TripDetail, Trips } from './pages/Trips.jsx';
 import StaffHome, { StaffOutbox } from './pages/staff/StaffHome.jsx';
 import { StaffDrivers, StaffFleet } from './pages/staff/Fleet.jsx';
 
@@ -20,6 +23,10 @@ export default function App() {
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="staff/login" element={<StaffLogin />} />
+        <Route path="book" element={<Book />} />
+        <Route path="services" element={<Services />} />
+        <Route path="trips" element={customer(<Trips />)} />
+        <Route path="trips/:id" element={customer(<TripDetail />)} />
         <Route path="dashboard" element={customer(<Dashboard />)} />
         <Route path="account" element={customer(<Account />)} />
         <Route path="messages" element={customer(<Messages />)} />
