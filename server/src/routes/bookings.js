@@ -6,6 +6,7 @@ import { body, queryOf, wrap } from '../middleware/validate.js';
 import { notFound } from '../errors.js';
 import { availabilityBySize } from '../services/availability.js';
 import { computeQuote } from '../services/pricing.js';
+import { cancelBooking, amendBooking, planAmendment } from '../services/changes.js';
 import { paymentSchema, recordDeclined, serializePayment, describeMethod } from '../services/payments.js';
 import {
   createBooking,
@@ -200,5 +201,78 @@ router.get(
     const row = await loadBookingRow(null, req.params.id);
     if (!row || row.customer_id !== req.user.id) throw notFound('Booking not found');
     res.json({ receipt: await buildReceipt(row, req.user) });
+  }),
+);
+
+/* ---------- cancel and amend (R10, US8.1, US8.2) ---------- */
+
+async function ownedBooking(req) {
+  if (!z.string().uuid().safeParse(req.params.id).success) throw notFound('Booking not found');
+  const row = await loadBookingRow(null, req.params.id);
+  if (!row || row.customer_id !== req.user.id) throw notFound('Booking not found');
+  return row;
+}
+
+const amendSchema = z.object({
+  pickup: z.string({ error: 'Pickup location is required' }).trim().max(200).default(''),
+  destination: z.string().trim().max(200).optional().default(''),
+  pickupAt: z.string({ error: 'Choose a date and time' }).min(1, 'Choose a date and time'),
+  passengers: z.coerce.number({ error: 'Enter the number of passengers' }).int().min(1, 'Enter at least 1 passenger').max(16),
+  hours: z.coerce.number().int().optional(),
+  sizeCode: z.string({ error: 'Choose a cab size' }).min(1, 'Choose a cab size'),
+});
+
+router.post(
+  '/:id/cancel',
+  ...customerOnly,
+  body(z.object({ reason: z.string().trim().max(300).optional() })),
+  wrap(async (req, res) => {
+    await ownedBooking(req);
+    const out = await tx((db) => cancelBooking(db, { id: req.params.id, actor: req.user, reason: req.body.reason || null }));
+    res.json({
+      booking: serializeBooking(out.booking, { cancelWindowHours: out.settings.cancelWindowHours }),
+      refund: out.refund ? serializePayment(out.refund) : null,
+    });
+  }),
+);
+
+/** Preview an amendment: availability + price difference, nothing is saved. */
+router.post(
+  '/:id/amend/preview',
+  ...customerOnly,
+  body(amendSchema),
+  wrap(async (req, res) => {
+    const row = await ownedBooking(req);
+    const settings = await getSettings();
+    if (!['confirmed', 'assigned'].includes(row.status) || !serializeBooking(row, { cancelWindowHours: settings.cancelWindowHours }).modifiable) {
+      return res.status(409).json({ error: { code: 'too_late', message: `Bookings can only be changed up to ${settings.cancelWindowHours} hours before pickup. Please call us on 020 7000 0000.` } });
+    }
+    const plan = await planAmendment(null, row, req.body);
+    res.json({
+      available: plan.available,
+      keepsCab: plan.keepsCab,
+      alternatives: plan.alternatives,
+      oldTotal: plan.oldTotal,
+      newTotal: plan.newTotal,
+      difference: plan.difference,
+      price: plan.quote,
+      distanceMiles: plan.journey.distance.miles,
+      pickupAt: plan.journey.pickupAt,
+    });
+  }),
+);
+
+router.post(
+  '/:id/amend',
+  ...customerOnly,
+  body(amendSchema),
+  wrap(async (req, res) => {
+    await ownedBooking(req);
+    const out = await tx((db) => amendBooking(db, { id: req.params.id, actor: req.user, input: req.body }));
+    res.json({
+      booking: serializeBooking(out.booking, { cancelWindowHours: out.settings.cancelWindowHours }),
+      difference: out.plan.difference,
+      settlement: out.settlement ? serializePayment(out.settlement) : null,
+    });
   }),
 );

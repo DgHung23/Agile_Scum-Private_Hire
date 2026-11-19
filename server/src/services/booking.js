@@ -280,14 +280,14 @@ export async function createBooking(db, { customer, input, channel, createdBy = 
       const { rows } = await db.query(
         `INSERT INTO bookings (ref, customer_id, service_code, pickup, destination, distance_miles, hours, pickup_at, end_at,
                                passengers, size_code, cab_id, channel, priority, notify_pref, notify_phone,
-                               price_full, discount_online, discount_offer, offer_code, total, created_by, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING id`,
+                               price_full, discount_online, discount_offer, offer_code, total, created_by, notes, offer_pct)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id`,
         [
           newRef(), customer.id, j.service.code, j.pickup, j.destination, j.distance.miles, j.hours, j.pickupAt,
           j.window.end, j.passengers, size.code, cab.id, channel, channel === 'online', notifyPref,
           ['text', 'both'].includes(notifyPref) ? customer.phone : null,
           quote.full, quote.discountOnline, quote.discountOffer, extra.offerCode || null, quote.total, createdBy,
-          input.notes || null,
+          input.notes || null, extra.offerPct || 0,
         ],
       );
       await db.query('RELEASE SAVEPOINT try_cab');

@@ -67,3 +67,12 @@ export const STATUS_TONE = {
   cancelled: 'red',
 };
 export const CHANNEL_LABEL = { online: 'Online', phone: 'Phone', in_person: 'In person' };
+
+/** ISO instant -> { date: 'yyyy-mm-dd', time: 'HH:mm' } in London time (for form inputs). */
+export function londonParts(iso) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(iso));
+  const g = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  return { date: `${g.year}-${g.month}-${g.day}`, time: `${g.hour === '24' ? '00' : g.hour}:${g.minute}` };
+}

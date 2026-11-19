@@ -61,4 +61,30 @@ journeys, and the business can reward loyal customers. Release hardening and doc
 
 ## Delivery log
 
-_Updated at the end of each module._
+_Updated at the end of each sprint. Tag = potentially shippable increment._
+
+### Sprint 1 (tag `sprint-1`) - Foundation, accounts and fleet
+
+Increment: a customer can register (confirmation email) and log in; staff sign in separately; staff manage cabs and
+drivers; the database refuses to double-book a cab or driver.
+
+| Module | Delivered | Evidence |
+|---|---|---|
+| M1 Platform | Docker Postgres, migrations, Express API skeleton, React shell, design system | home page verified at 1366px and 390px |
+| M2 Accounts | US1.1, 1.2, 1.3, 1.5, 9.1 | 10 API tests, browser e2e (register, login, logout + Back, staff login) |
+| M3 Fleet | US9.6, 9.7, 5.1 engine, 9.4 data | 19 API tests (incl. exclusion constraint), browser e2e |
+
+### Sprint 2 (tag `sprint-2`) - Booking, payment and receipts (MVP journey)
+
+Increment: a registered customer books online with the 15% discount, pays by card or PayPal, prints a receipt, and
+cancels or amends within the 24-hour rule.
+
+| Module | Delivered | Evidence |
+|---|---|---|
+| M4 Booking | US3.1-3.7, 4.1, 4.2, 5.1, 5.2 | pricing unit tests, 6 parallel requests never double-book, wizard e2e that survives login |
+| M5 Payments | US5.3, 5.4, 6.1, 1.4 | Luhn/expiry/Amex rules tested, decline rolls back booking, card number never stored |
+| M6 Cancel/amend | US8.1, 8.2 | 24h boundary tests (23h refused, 25h allowed), refund/charge difference, availability re-check |
+
+Defects found and fixed during the sprint (kept for the retrospective): zod 4 ignoring `required_error`; Express 5
+read-only `req.query`; deadlock when parallel bookings hit the exclusion constraint (fixed with a per-size advisory
+lock); wizard losing its quote after login; PayPal-cancel message being cleared; logout racing the route guard.
