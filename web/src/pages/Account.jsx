@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
@@ -131,6 +132,10 @@ export default function Account() {
       <div className="medium stack-lg">
         <PageHeader title="Your account" sub="Keep your details up to date so drivers and staff can reach you." />
         <VerifyBanner />
+        <section className="card row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+          <div><h3>Travelling for work?</h3><p className="small muted">Book on a company account with one monthly invoice.</p></div>
+          <Link to="/business" className="btn btn-secondary">Company account</Link>
+        </section>
         <section className="card stack">
           <h3>Personal details</h3>
           <ProfileForm

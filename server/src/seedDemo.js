@@ -156,6 +156,21 @@ export async function seedDemo() {
       [cp.rows[0].id],
     );
 
+    // N06 to N12: an approved company (Alex is the account admin, Priya books for it) and an application to decide
+    const mgr = (await db.query("SELECT id FROM users WHERE email='manager@privatehire.test'")).rows[0].id;
+    const co = await db.query(
+      `INSERT INTO companies (name, companies_house_no, billing_address, finance_contact, finance_email, expected_spend, credit_limit, status, applied_by, approved_by, approved_at)
+       VALUES ('Morgan Consulting Ltd', '07654321', '1 Fleet Street, London EC4Y 1AA', 'Alex Morgan', 'accounts@morgan-consulting.example', 1500, 2000, 'approved', $1, $2, now() - interval '20 days')
+       RETURNING id`,
+      [ids[0], mgr],
+    );
+    await db.query("INSERT INTO company_members (company_id, customer_id, member_role) VALUES ($1,$2,'admin'), ($1,$3,'booker')", [co.rows[0].id, ids[0], ids[1]]);
+    await db.query(
+      `INSERT INTO companies (name, companies_house_no, billing_address, finance_contact, finance_email, expected_spend, applied_by)
+       VALUES ('Becker Events Ltd', '11223344', '3 Camden Lock, London NW1 8AF', 'Tom Becker', 'finance@becker-events.example', 800, $1)`,
+      [ids[2]],
+    );
+
     await db.query(
       `INSERT INTO enquiries (user_id, name, email, subject, message) VALUES
         (NULL, 'Visitor Vic', 'vic@example.com', 'Do you cover Kent?', 'We would like a weekly run to Canterbury. Do you cover that area and what would it cost?'),

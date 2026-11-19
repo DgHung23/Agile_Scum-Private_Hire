@@ -218,6 +218,7 @@ const STAFF_NAV = [
   { to: '/staff/fleet', label: 'Fleet', icon: 'car', roles: DESK },
   { to: '/staff/drivers', label: 'Drivers', icon: 'wheel', roles: DESK },
   { to: '/staff/pricing', label: 'Prices', icon: 'tag', roles: ['manager'] },
+  { to: '/staff/companies', label: 'Companies', icon: 'building', roles: ['manager'] },
   { to: '/staff/offers', label: 'Offers', icon: 'gift', roles: ['manager'] },
   { to: '/staff/reports', label: 'Reports', icon: 'chart', roles: ['manager'] },
   { to: '/staff/outbox', label: 'Outbox', icon: 'inbox', roles: DESK },

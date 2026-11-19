@@ -15,6 +15,8 @@ import Track from './pages/Track.jsx';
 import Driver from './pages/Driver.jsx';
 import Support, { Help } from './pages/Support.jsx';
 import SupportDesk from './pages/staff/SupportDesk.jsx';
+import Business, { JoinCompany } from './pages/Business.jsx';
+import Companies from './pages/staff/Companies.jsx';
 import BookingManage from './pages/staff/BookingManage.jsx';
 import Amend from './pages/Amend.jsx';
 import ProviderMock from './pages/PayPalMock.jsx';
@@ -67,6 +69,8 @@ export default function App() {
         <Route path="track/:token" element={<Track />} />
         <Route path="help" element={<Help />} />
         <Route path="support" element={customer(<Support />)} />
+        <Route path="business" element={customer(<Business />)} />
+        <Route path="business/join" element={customer(<JoinCompany />)} />
         <Route path="driver" element={<RequireAuth roles={['driver']}><Driver /></RequireAuth>} />
         <Route path="*" element={<ComingSoon title="Page coming soon" />} />
       </Route>
@@ -96,6 +100,7 @@ export default function App() {
         <Route path="receipts/:rid" element={only(DESK, <StaffReceipt />)} />
         <Route path="bookings/:id" element={only(DESK, <BookingManage />)} />
         <Route path="support" element={only(DESK, <SupportDesk />)} />
+        <Route path="companies" element={only(['manager'], <Companies />)} />
         <Route path="admin/staff" element={only(['admin'], <StaffAccounts />)} />
         <Route path="admin/settings" element={only(['admin'], <Settings />)} />
         <Route path="admin/audit" element={only(['admin'], <AuditLog />)} />
