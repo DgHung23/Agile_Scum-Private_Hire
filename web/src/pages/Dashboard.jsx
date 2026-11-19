@@ -1,11 +1,15 @@
 import { Link } from 'react-router-dom';
+import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Icon } from '../icons.jsx';
-import { PageHeader } from '../ui.jsx';
+import { BookingCard } from '../components/BookingBits.jsx';
+import { Empty, Loading, PageHeader, useLoad } from '../ui.jsx';
 
-/** Customer home. Sections are filled in as modules are delivered (upcoming trips in Sprint 2, offers in Sprint 3). */
+/** Customer home. Offers are added in Sprint 3. */
 export default function Dashboard() {
   const { user } = useAuth();
+  const { data, loading } = useLoad(() => api.get('/bookings?when=upcoming'));
+  const upcoming = data?.bookings.slice(0, 3) || [];
   return (
     <div className="container page">
       <div className="stack-lg">
@@ -27,6 +31,18 @@ export default function Dashboard() {
             <p className="muted small">Confirmations and driver updates.</p>
           </Link>
         </div>
+
+        <section className="stack">
+          <div className="row-between">
+            <h3>Upcoming trips</h3>
+            <Link to="/trips" className="small strong">See all</Link>
+          </div>
+          {loading && <Loading />}
+          {data && upcoming.length === 0 && (
+            <Empty icon="calendar" title="No trips booked" action={<Link to="/book" className="btn">Book your first ride</Link>} />
+          )}
+          <div className="grid grid-3">{upcoming.map((b) => <BookingCard key={b.id} b={b} />)}</div>
+        </section>
       </div>
     </div>
   );

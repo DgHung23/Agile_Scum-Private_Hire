@@ -38,6 +38,21 @@ export const authenticate = wrap(async (req, _res, next) => {
   next();
 });
 
+/** Like authenticate, but anonymous requests continue with req.user undefined (e.g. price quotes before login). */
+export const optionalAuth = wrap(async (req, _res, next) => {
+  const header = req.headers.authorization || '';
+  if (header.startsWith('Bearer ')) {
+    try {
+      const payload = jwt.verify(header.slice(7), config.jwtSecret);
+      const { rows } = await query('SELECT * FROM users WHERE id = $1 AND is_active', [payload.sub]);
+      if (rows[0]) req.user = rows[0];
+    } catch {
+      /* ignore invalid token for optional auth */
+    }
+  }
+  next();
+});
+
 export const requireRole =
   (...roles) =>
   (req, _res, next) => {

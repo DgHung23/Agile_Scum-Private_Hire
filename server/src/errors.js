@@ -5,6 +5,12 @@ export class HttpError extends Error {
     this.status = status;
     this.code = code;
     this.details = details;
+    this.extra = null;
+  }
+  /** Attach extra machine-readable data (e.g. alternative times) to the error response. */
+  withExtra(extra) {
+    this.extra = extra;
+    return this;
   }
 }
 export const badRequest = (m, details) => new HttpError(400, m, 'bad_request', details);

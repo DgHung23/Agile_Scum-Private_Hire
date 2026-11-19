@@ -20,7 +20,14 @@ export function errorHandler(err, req, res, next) {
   if (err instanceof HttpError) {
     return res
       .status(err.status)
-      .json({ error: { code: err.code, message: err.message, ...(err.details ? { fields: err.details } : {}) } });
+      .json({
+        error: {
+          code: err.code,
+          message: err.message,
+          ...(err.details ? { fields: err.details } : {}),
+          ...(err.extra || {}),
+        },
+      });
   }
   // Postgres: unique violation / exclusion violation (double booking) / FK
   if (err?.code === '23505') {
