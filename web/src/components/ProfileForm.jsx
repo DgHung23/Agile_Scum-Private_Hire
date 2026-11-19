@@ -3,13 +3,13 @@ import { Alert, SelectField, TextField } from '../ui.jsx';
 import { passwordStrength, v, validate } from '../validators.js';
 import { Icon } from '../icons.jsx';
 
-const BLANK = { fullName: '', email: '', phone: '', addressLine: '', city: '', postcode: '', notifyPref: 'email', password: '' };
+const BLANK = { fullName: '', email: '', phone: '', addressLine: '', city: '', postcode: '', notifyPref: 'email', password: '', signupChannel: 'phone' };
 
 /**
  * One form for registering, editing a profile and (later) staff creating an account for a caller.
  * US1.1 / US1.5 / US9.3 share the same validation, client-side here and server-side in the API.
  */
-export default function ProfileForm({ initial, withPassword = false, submitLabel, onSubmit, onCancel }) {
+export default function ProfileForm({ initial, withPassword = false, withChannel = false, submitLabel, onSubmit, onCancel }) {
   const [values, setValues] = useState({ ...BLANK, ...initial });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
@@ -76,6 +76,12 @@ export default function ProfileForm({ initial, withPassword = false, submitLabel
           <option value="text">Text message</option>
           <option value="both">Email and text message</option>
         </SelectField>
+        {withChannel && (
+          <SelectField className="span-2" label="How is this customer contacting us?" value={values.signupChannel} onChange={set('signupChannel')}>
+            <option value="phone">By phone</option>
+            <option value="in_person">In person</option>
+          </SelectField>
+        )}
         {withPassword && (
           <div className="span-2 stack-sm">
             <div className="field">

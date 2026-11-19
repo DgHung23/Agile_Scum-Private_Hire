@@ -4,6 +4,7 @@ import { router as catalog } from './catalog.js';
 import { router as bookings } from './bookings.js';
 import { router as payments } from './payments.js';
 import { router as fleet } from './fleet.js';
+import { router as callcentre } from './callcentre.js';
 
 /** Central route registry. Each module adds its router here (see docs/SPRINTS.md). */
 export function registerRoutes(api) {
@@ -13,4 +14,5 @@ export function registerRoutes(api) {
   api.use('/bookings', bookings);
   api.use('/payments', payments);
   api.use('/staff', fleet);
+  api.use('/staff', callcentre);
 }
