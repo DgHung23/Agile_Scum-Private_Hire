@@ -6,6 +6,8 @@ import { body, queryOf, wrap } from '../middleware/validate.js';
 import { badRequest, HttpError, notFound } from '../errors.js';
 import { phoneSchema } from '../schemas.js';
 import { bookingWindow, findAvailableCabs, findAvailableDrivers } from '../services/availability.js';
+import { computeQuote } from '../services/pricing.js';
+import { getSettings, prepareJourney } from '../services/booking.js';
 
 export const router = Router();
 router.use(...staffOnly);
@@ -252,20 +254,47 @@ const availQuery = z.object({
   start: z.string().datetime({ offset: true, message: 'Start must be a valid date and time' }),
   durationMinutes: z.coerce.number().int().min(15).max(24 * 60).default(60),
   size: z.string().optional(),
+  // optional journey: when given, the response includes an estimated price per cab size (US9.4 criterion 2)
+  serviceCode: z.string().optional(),
+  pickup: z.string().trim().max(200).optional(),
+  destination: z.string().trim().max(200).optional(),
+  hours: z.coerce.number().int().optional(),
 });
 
 router.get(
   '/availability',
   queryOf(availQuery),
   wrap(async (req, res) => {
-    const { start, end } = bookingWindow(req.query.start, req.query.durationMinutes);
+    let minutes = req.query.durationMinutes;
+    let prices = null;
+    if (req.query.serviceCode) {
+      const settings = await getSettings();
+      const j = await prepareJourney(null, {
+        serviceCode: req.query.serviceCode,
+        pickup: req.query.pickup,
+        destination: req.query.destination,
+        pickupAt: req.query.start,
+        passengers: 1,
+        hours: req.query.hours,
+      });
+      minutes = j.durationMinutes;
+      const sizes = (await query('SELECT * FROM cab_sizes ORDER BY sort')).rows;
+      prices = Object.fromEntries(
+        sizes.map((s) => [
+          s.code,
+          computeQuote({ service: j.service, size: { ...s, multiplier: Number(s.multiplier) }, miles: j.distance.miles, hours: j.hours, channel: 'phone', onlineDiscountPct: settings.onlineDiscountPct }).total,
+        ]),
+      );
+    }
+    const { start, end } = bookingWindow(req.query.start, minutes);
     const [cabs, drivers] = await Promise.all([
       findAvailableCabs(null, { start, end, sizeCode: req.query.size || null }),
       findAvailableDrivers(null, { start, end }),
     ]);
     res.json({
       window: { start, end },
-      cabs: cabs.map((c) => serializeCab(c)),
+      durationMinutes: minutes,
+      cabs: cabs.map((c) => ({ ...serializeCab(c), estimatedPrice: prices ? prices[c.size_code] : null })),
       drivers: drivers.map(serializeDriver),
     });
   }),

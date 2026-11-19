@@ -15,6 +15,9 @@ import Amend from './pages/Amend.jsx';
 import PayPalMock from './pages/PayPalMock.jsx';
 import StaffHome, { StaffOutbox } from './pages/staff/StaffHome.jsx';
 import { StaffDrivers, StaffFleet } from './pages/staff/Fleet.jsx';
+import { CallDesk, CallDeskCustomer, NewCaller } from './pages/staff/CallDesk.jsx';
+import StaffBook from './pages/staff/StaffBook.jsx';
+import StaffAvailability from './pages/staff/StaffAvailability.jsx';
 
 const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
 
@@ -47,6 +50,11 @@ export default function App() {
         }
       >
         <Route index element={<StaffHome />} />
+        <Route path="call-desk" element={<CallDesk />} />
+        <Route path="call-desk/new" element={<NewCaller />} />
+        <Route path="call-desk/:id" element={<CallDeskCustomer />} />
+        <Route path="call-desk/:id/book" element={<StaffBook />} />
+        <Route path="availability" element={<StaffAvailability />} />
         <Route path="fleet" element={<StaffFleet />} />
         <Route path="drivers" element={<StaffDrivers />} />
         <Route path="outbox" element={<StaffOutbox />} />
