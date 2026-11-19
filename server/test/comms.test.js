@@ -79,7 +79,7 @@ test('US2.3 staff inbox: newest first with status, reply is emailed and status b
 test('US9.8 staff email a customer from the system (needs an open, verified record)', async () => {
   const blocked = await t.call('POST', `/staff/customers/${customerId}/email`, { token: staff, body: { subject: 'Hi', message: 'Hello' } });
   assert.equal(blocked.status, 403);
-  await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123' }, confirmed: true } });
+  await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123', secretWord: 'bluebird' }, confirmed: true } });
   assert.equal((await t.call('POST', `/staff/customers/${customerId}/email`, { token: staff, body: { subject: '', message: '' } })).status, 400);
   const ok = await t.call('POST', `/staff/customers/${customerId}/email`, { token: staff, body: { subject: 'Your quote', message: 'Here is the quote you asked for.' } });
   assert.equal(ok.status, 201);
@@ -96,7 +96,7 @@ let job;
 test('US9.9 dispatch board lists bookings needing a driver with online (priority) first', async () => {
   const soon = new Date(Date.now() + 5 * 3600_000);
   const online = await book({ pickupAt: new Date(soon.getTime() + 2 * 3600_000).toISOString() });
-  await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123' }, confirmed: true } });
+  await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123', secretWord: 'bluebird' }, confirmed: true } });
   const phone = await t.call('POST', '/staff/bookings', {
     token: staff,
     body: { serviceCode: 'local', pickup: 'Camden Town', destination: 'Greenwich', pickupAt: soon.toISOString(), passengers: 2, sizeCode: 'saloon', channel: 'phone', customerId },

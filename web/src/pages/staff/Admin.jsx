@@ -151,6 +151,7 @@ export function Settings() {
           <div><button className="btn" onClick={save} disabled={busy || !Object.keys(draft).length}>{busy ? 'Saving...' : 'Save settings'}</button></div>
         </section>
       )}
+      <Jobs />
     </div>
   );
 }
@@ -191,5 +192,30 @@ export function AuditLog() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Background jobs run every minute; Admin can run one now (for a demonstration or after a change). */
+function Jobs() {
+  const toast = useToast();
+  const run = async (name, label) => {
+    try {
+      const r = await api.post(`/admin/jobs/${name}`);
+      toast(`${label}: ${r.done} done`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+  return (
+    <section className="card stack">
+      <h3>Background jobs</h3>
+      <p className="small muted">They run automatically. Each run is written to the audit log.</p>
+      <div className="row">
+        <button className="btn btn-subtle btn-sm" onClick={() => run('reminders', '24-hour reminders')}>Send 24-hour reminders</button>
+        <button className="btn btn-subtle btn-sm" onClick={() => run('deliver', 'Message delivery')}>Deliver queued messages</button>
+        <button className="btn btn-subtle btn-sm" onClick={() => run('expireHolds', 'Unpaid holds')}>Release unpaid holds</button>
+        <button className="btn btn-subtle btn-sm" onClick={() => run('retention', 'Data retention (12 months)')}>Run data retention</button>
+      </div>
+    </section>
   );
 }

@@ -7,6 +7,7 @@ import { HttpError, notFound } from '../errors.js';
 import { audit } from '../services/audit.js';
 import { ACCESSIBILITY_LABEL, loadBookingRow } from '../services/booking.js';
 import { changeStatus, reportLate } from '../services/journey.js';
+import { logFoundItem } from './support.js';
 
 /**
  * Simulated Driver view (team decision 19 Nov; N34, N35, N36). A driver sees only their own jobs and only the job
@@ -116,6 +117,7 @@ router.post(
         return (await changeStatus(db, { id: row.id, to: 'interrupted', actor: req.user, req, reason: req.body.message, byDriver: true })).row;
       }
       await db.query("INSERT INTO incidents (booking_id, reported_by, kind, message) VALUES ($1,$2,'found_item',$3)", [row.id, req.user.id, req.body.message]);
+      await logFoundItem(db, { bookingId: row.id, description: req.body.message, actor: req.user }); // N28: matched to a report
       await audit(db, req, 'driver.found_item', 'booking', row.id, { message: req.body.message });
       return loadBookingRow(db, row.id);
     });

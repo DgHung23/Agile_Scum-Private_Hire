@@ -68,7 +68,15 @@ export default function StaffReviews() {
               <span className="small">Cab <Stars value={r.cabRating} size={14} /> {r.cab}</span>
               <span className="small">Driver <Stars value={r.driverRating} size={14} /> {r.driverName}</span>
             </div>
-            {r.comment && <p className="small muted">&ldquo;{r.comment}&rdquo; - {r.customerName}</p>}
+            {r.comment && (
+              <div className="row-between" style={{ gap: 8 }}>
+                <p className="small muted">{r.hidden ? <em>Text hidden ({r.hiddenReason})</em> : <>&ldquo;{r.comment}&rdquo;</>} - {r.customerName}</p>
+                {/* ID-60: staff can hide abusive text; the star ratings stay */}
+                <button className="btn btn-ghost btn-sm" onClick={async () => { await api.post(`/staff/reviews/${r.id}/hide`, { hidden: !r.hidden, reason: 'Abusive language' }); list.reload(); }}>
+                  {r.hidden ? 'Show text' : 'Hide text'}
+                </button>
+              </div>
+            )}
           </article>
         ))}
       </section>

@@ -149,6 +149,8 @@ export default function Account() {
           <PasswordForm />
         </section>
         <SecretWordForm hasOne={user.hasSecretWord} onSaved={() => setUser({ ...user, hasSecretWord: true })} />
+        <Favourites />
+        <YourData />
       </div>
     </div>
   );
@@ -220,6 +222,81 @@ function SecretWordForm({ hasOne, onSaved }) {
         <TextField label="Current password" type="password" autoComplete="current-password" value={f.currentPassword} onChange={(e) => setF({ ...f, currentPassword: e.target.value })} error={errors.currentPassword} />
         <div className="span-2"><button className="btn btn-secondary" disabled={busy}>{busy ? 'Saving...' : 'Save secret word'}</button></div>
       </form>
+    </section>
+  );
+}
+
+/** ID-22: favourite places, offered as suggestions when booking. */
+function Favourites() {
+  const toast = useToast();
+  const { data, reload } = useLoad(() => api.get('/support/favourites'));
+  const [f, setF] = useState({ label: '', address: '' });
+  const [errors, setErrors] = useState({});
+  const add = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/support/favourites', f);
+      setF({ label: '', address: '' });
+      setErrors({});
+      reload();
+    } catch (x) {
+      setErrors(x.fields || {});
+      if (!x.fields) toast(x.message, 'error');
+    }
+  };
+  return (
+    <section className="card stack">
+      <h3>Favourite places</h3>
+      {data?.favourites.map((p) => (
+        <div key={p.id} className="row-between small">
+          <span><strong>{p.label}</strong> - {p.address}</span>
+          <button className="btn btn-ghost btn-sm" onClick={async () => { await api.del(`/support/favourites/${p.id}`); reload(); }}>Remove</button>
+        </div>
+      ))}
+      <form className="form-grid two" onSubmit={add} noValidate>
+        <TextField label="Name" placeholder="Home, Work..." value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} error={errors.label} />
+        <TextField label="Address" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} error={errors.address} />
+        <div><button className="btn btn-secondary">Save place</button></div>
+      </form>
+    </section>
+  );
+}
+
+/** ID-16: see and download my data, or delete my account. */
+function YourData() {
+  const [confirm, setConfirm] = useState(false);
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const { logout } = useAuth();
+  const del = async () => {
+    try {
+      await api.post('/support/delete-account', { currentPassword: pw });
+      logout();
+      window.location.assign('/');
+    } catch (x) {
+      setErr(x.fields?.currentPassword || x.message);
+    }
+  };
+  return (
+    <section className="card stack">
+      <h3>Your data</h3>
+      <p className="small muted">Download everything we hold about you, or delete your account. We keep anonymous booking records for 12 months, as Transport for London requires.</p>
+      <div className="row">
+        <a className="btn btn-secondary" href="/api/v1/support/my-data" download>Download my data</a>
+        <button className="btn btn-subtle" onClick={() => setConfirm(true)}>Delete my account</button>
+      </div>
+      {confirm && (
+        <Modal title="Delete your account?" onClose={() => setConfirm(false)}>
+          <div className="stack">
+            <p className="small">This removes your name, contact details, saved cards and places. It cannot be undone.</p>
+            <TextField label="Your password" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setErr(''); }} error={err} />
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-subtle" onClick={() => setConfirm(false)}>Keep my account</button>
+              <button className="btn" onClick={del} disabled={!pw}>Delete account</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

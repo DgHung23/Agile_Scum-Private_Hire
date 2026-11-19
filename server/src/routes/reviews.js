@@ -5,6 +5,7 @@ import { customerOnly, staffOnly } from '../middleware/auth.js';
 import { body, queryOf, wrap } from '../middleware/validate.js';
 import { HttpError, notFound } from '../errors.js';
 import { loadBookingRow } from '../services/booking.js';
+import { audit } from '../services/audit.js';
 
 export const router = Router(); // mounted at /bookings
 export const staffRouter = Router(); // mounted at /staff
@@ -100,8 +101,26 @@ staffRouter.get(
         cabRating: r.cab_rating,
         driverRating: r.driver_rating,
         comment: r.comment,
+        hidden: r.hidden,
+        hiddenReason: r.hidden_reason,
         createdAt: r.created_at,
       })),
     });
+  }),
+);
+
+/** ID-60: staff hide abusive review text (the star ratings stay). */
+staffRouter.post(
+  '/reviews/:id/hide',
+  body(z.object({ hidden: z.boolean(), reason: z.string().trim().max(200).optional() })),
+  wrap(async (req, res) => {
+    if (!z.string().uuid().safeParse(req.params.id).success) throw new HttpError(404, 'Review not found', 'not_found');
+    const { rows } = await query(
+      'UPDATE reviews SET hidden=$2, hidden_by=$3, hidden_reason=$4 WHERE id=$1 RETURNING id',
+      [req.params.id, req.body.hidden, req.user.id, req.body.hidden ? req.body.reason || 'Abusive language' : null],
+    );
+    if (!rows[0]) throw new HttpError(404, 'Review not found', 'not_found');
+    await audit(null, req, req.body.hidden ? 'review.hide' : 'review.show', 'review', req.params.id, { reason: req.body.reason });
+    res.json({ ok: true });
   }),
 );

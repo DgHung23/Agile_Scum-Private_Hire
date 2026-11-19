@@ -57,12 +57,19 @@ test('US9.2 verification: needs 2 matching answers AND the "identity verified" c
   assert.equal(wrong.body.matched, 0);
   assert.deepEqual(wrong.body.results, { postcode: false, phone_last4: false }, 'reveals which checks failed, never the right answer');
 
-  const noTick = await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123' } } });
+  const noTick = await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'SW1A 2AA', phoneLast4: '0123', secretWord: 'bluebird' } } });
   assert.equal(noTick.body.verified, false);
   assert.equal(noTick.body.awaitingConfirmation, true);
   assert.equal((await t.call('GET', `/staff/customers/${customerId}`, { token: staff })).status, 403, 'still closed without the confirmation');
 
-  const ok = await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'sw1a 2aa', phoneLast4: '0123', houseNumber: '10' }, confirmed: true } });
+  await t.pool.query("UPDATE caller_verifications SET created_at = now() - interval '1 hour' WHERE customer_id=$1", [customerId]); // stay under the 5-failure lock
+  // ID-20, red-team row 10: the secret word is required when the customer set one, and receipt data does not count
+  const noWord = await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'sw1a 2aa', phoneLast4: '0123', houseNumber: '10' }, confirmed: true } });
+  assert.equal(noWord.body.verified, false);
+  assert.equal(noWord.body.secretWordRequired, true);
+  const receiptOnly = await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { email: 'customer@privatehire.test', secretWord: 'bluebird' }, confirmed: true } });
+  assert.equal(receiptOnly.body.verified, false, 'email is printed on receipts, so it does not count');
+  const ok = await t.call('POST', `/staff/customers/${customerId}/verify`, { token: staff, body: { answers: { postcode: 'sw1a 2aa', phoneLast4: '0123', secretWord: 'Bluebird' }, confirmed: true } });
   assert.equal(ok.body.verified, true);
   assert.equal(ok.body.matched, 3);
   const open = await t.call('GET', `/staff/customers/${customerId}`, { token: staff });
