@@ -4,6 +4,7 @@ import { badRequest, HttpError } from '../errors.js';
 import { bookingWindow, findAvailableCabs } from './availability.js';
 import { computeQuote, estimateDistance, estimateDuration } from './pricing.js';
 import { sendEmail } from './notify.js';
+import { createSavedCard, describeMethod, takePayment } from './payments.js';
 
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const MIN_LEAD_MINUTES = 10;
@@ -202,7 +203,7 @@ const fmt = (d) =>
   }).format(new Date(d));
 const gbp = (n) => `GBP ${Number(n).toFixed(2)}`;
 
-export function bookingConfirmationEmail(row, customerName) {
+export function bookingConfirmationEmail(row, customerName, paidWith = null) {
   const lines = [
     `Hello ${customerName},`,
     '',
@@ -220,7 +221,9 @@ export function bookingConfirmationEmail(row, customerName) {
   ];
   if (row.discount_online > 0) lines.push(`Online discount: -${gbp(row.discount_online)}`);
   if (row.discount_offer > 0) lines.push(`Offer ${row.offer_code}: -${gbp(row.discount_offer)}`);
-  lines.push(`Total: ${gbp(row.total)}`, '');
+  lines.push(`Total: ${gbp(row.total)}`);
+  if (paidWith) lines.push(`Paid with: ${paidWith}`);
+  lines.push('');
   if (['text', 'both'].includes(row.notify_pref)) {
     lines.push(`About 10-15 minutes before arrival we will text ${row.notify_phone} with your car's registration, colour and make.`, '');
   }
@@ -240,7 +243,7 @@ export const lockCabSize = (db, sizeCode) =>
  * The database exclusion constraint is the final guard against double booking; if a parallel request takes the
  * cab first we simply try the next free cab (US5.1).
  */
-export async function createBooking(db, { customer, input, channel, createdBy = null, extra = {} }) {
+export async function createBooking(db, { customer, input, channel, createdBy = null, extra = {}, payment = null }) {
   const settings = await getSettings(db);
   const j = await prepareJourney(db, input);
 
@@ -306,8 +309,18 @@ export async function createBooking(db, { customer, input, channel, createdBy = 
     ).withExtra({ alternatives });
   }
 
+  // US5.3: take payment inside the same transaction. A decline throws 402 and the booking is rolled back.
+  let paymentRow = null;
+  if (payment) {
+    paymentRow = await takePayment(db, { userId: customer.id, bookingId: inserted, amount: quote.total, payment });
+    await db.query("UPDATE bookings SET payment_status='paid' WHERE id=$1", [inserted]);
+    if (payment.method === 'card' && payment.card && payment.saveCard) {
+      await createSavedCard(db, customer.id, payment.card);
+    }
+  }
+
   const row = await loadBookingRow(db, inserted);
-  const mail = bookingConfirmationEmail(row, customer.full_name);
+  const mail = bookingConfirmationEmail(row, customer.full_name, paymentRow ? describeMethod(paymentRow) : null);
   await sendEmail({ userId: customer.id, to: customer.email, kind: 'booking_confirmed', bookingId: row.id, ...mail }, db);
-  return { row, quote, settings };
+  return { row, quote, settings, payment: paymentRow };
 }

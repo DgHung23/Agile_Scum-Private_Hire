@@ -19,16 +19,16 @@ const checkId = (id) => {
 
 const cabSchema = z.object({
   reg: z
-    .string({ required_error: 'Registration number is required' })
+    .string({ error: 'Registration number is required' })
     .trim()
     .min(2, 'Registration number is required')
     .max(10, 'Registration number is too long')
     .regex(/^[A-Za-z0-9 ]+$/, 'Use letters and numbers only')
     .transform((s) => s.toUpperCase().replace(/\s+/g, ' ')),
-  make: z.string({ required_error: 'Make is required' }).trim().min(1, 'Make is required').max(40),
-  model: z.string({ required_error: 'Model is required' }).trim().min(1, 'Model is required').max(40),
-  colour: z.string({ required_error: 'Colour is required' }).trim().min(1, 'Colour is required').max(30),
-  sizeCode: z.string({ required_error: 'Choose a cab size' }).min(1, 'Choose a cab size'),
+  make: z.string({ error: 'Make is required' }).trim().min(1, 'Make is required').max(40),
+  model: z.string({ error: 'Model is required' }).trim().min(1, 'Model is required').max(40),
+  colour: z.string({ error: 'Colour is required' }).trim().min(1, 'Colour is required').max(30),
+  sizeCode: z.string({ error: 'Choose a cab size' }).min(1, 'Choose a cab size'),
   active: z.boolean().optional(),
 });
 
@@ -145,10 +145,10 @@ router.patch(
 /* ---------------- drivers (US9.7) ---------------- */
 
 const driverSchema = z.object({
-  fullName: z.string({ required_error: 'Full name is required' }).trim().min(1, 'Full name is required').max(100),
+  fullName: z.string({ error: 'Full name is required' }).trim().min(1, 'Full name is required').max(100),
   phone: phoneSchema,
   licenceNo: z
-    .string({ required_error: 'Licence number is required' })
+    .string({ error: 'Licence number is required' })
     .trim()
     .min(3, 'Licence number is required')
     .max(30)

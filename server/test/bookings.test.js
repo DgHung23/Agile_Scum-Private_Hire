@@ -18,6 +18,8 @@ const day = (n, h = 10, m = 0) => {
   return d.toISOString();
 };
 
+export const PAY = { method: 'card', card: { number: '4242 4242 4242 4242', expMonth: 12, expYear: 2031, cvv: '123', holder: 'Alex Morgan' } };
+
 const journey = (over = {}) => ({
   serviceCode: 'local',
   pickup: 'Paddington Station',
@@ -26,11 +28,12 @@ const journey = (over = {}) => ({
   passengers: 2,
   sizeCode: 'saloon',
   notifyPref: 'email',
+  payment: PAY,
   ...over,
 });
 
 test('US5.2 quote is public and prices every cab size with the 15% online discount', async () => {
-  const { sizeCode, notifyPref, ...q } = journey({ passengers: 5 });
+  const { sizeCode, notifyPref, payment, ...q } = journey({ passengers: 5 });
   const r = await t.call('POST', '/bookings/quote', { body: q });
   assert.equal(r.status, 200);
   assert.equal(r.body.sizes.length, 5);
@@ -43,7 +46,7 @@ test('US5.2 quote is public and prices every cab size with the 15% online discou
 });
 
 test('R3 staff quoting for the phone channel gets no online discount', async () => {
-  const { sizeCode, notifyPref, ...q } = journey();
+  const { sizeCode, notifyPref, payment, ...q } = journey();
   const r = await t.call('POST', '/bookings/quote', { token: staff, body: { ...q, channel: 'phone' } });
   assert.equal(r.body.sizes[0].price.discountOnline, 0);
   // a customer cannot ask for the phone channel to dodge the rule in the other direction

@@ -113,8 +113,16 @@ export function TripDetail() {
         </section>
 
         <section className="card stack">
-          <h3>Price</h3>
+          <h3>Price and payment</h3>
           <PriceBreakdown price={b.price} />
+          {data.payments.map((p) => (
+            <div key={p.id} className="small muted">
+              {p.kind === 'refund' ? 'Refunded' : 'Paid'} {money(p.amount)} by {p.method === 'card' ? `${p.cardBrandLabel} ending ${p.cardLast4}` : p.method === 'paypal' ? 'PayPal' : 'cash'} on {fmtDate(p.createdAt)}
+            </div>
+          ))}
+          {data.payments.length > 0 && (
+            <div><Link to={`/trips/${b.id}/receipt`} className="btn btn-secondary btn-sm"><Icon name="file" size={16} /> View and print receipt</Link></div>
+          )}
           {b.priority && <p className="small muted"><Icon name="zap" size={14} /> Priority service: online bookings are dispatched first.</p>}
         </section>
 
