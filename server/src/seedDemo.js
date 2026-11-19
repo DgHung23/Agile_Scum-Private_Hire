@@ -83,10 +83,10 @@ export async function seedDemo() {
       try {
         ins = await db.query(
           `INSERT INTO bookings (ref, customer_id, service_code, pickup, destination, distance_miles, hours, pickup_at, end_at, passengers, size_code,
-                                 cab_id, driver_id, channel, priority, notify_pref, status, price_full, discount_online, total, payment_status, created_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'email','completed',$16,$17,$18,'paid',$19) RETURNING id`,
+                                 cab_id, driver_id, channel, priority, notify_pref, status, price_full, discount_online, total, payment_status, created_by, price_lines)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'email','completed',$16,$17,$18,'paid',$19,$20) RETURNING id`,
           [newRef(), cust, svc, from, to || 'Return to pickup location', dist.miles, hours, start, end, pax, size.code, cab.id, driver.id, channel,
-            channel === 'online', q.full, q.discountOnline, q.total, channel === 'online' ? cust : staffId],
+            channel === 'online', q.full, q.discountOnline, q.total, channel === 'online' ? cust : staffId, JSON.stringify(q.lines)],
         );
         await db.query('RELEASE SAVEPOINT demo_row');
       } catch {
@@ -127,13 +127,24 @@ export async function seedDemo() {
       const cab = cabs.filter((c) => c.size_code === size.code)[u];
       await db.query(
         `INSERT INTO bookings (ref, customer_id, service_code, pickup, destination, distance_miles, pickup_at, end_at, passengers, size_code, cab_id, driver_id,
-                               channel, priority, notify_pref, notify_phone, status, price_full, discount_online, total, payment_status, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,2,$9,$10,$11,$12,$13,'both','07700 900123',$14,$15,$16,$17,$18,$19)`,
+                               channel, priority, notify_pref, notify_phone, status, price_full, discount_online, total, payment_status, created_by, price_lines)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,2,$9,$10,$11,$12,$13,'both','07700 900123',$14,$15,$16,$17,$18,$19,$20)`,
         [newRef(), ids[ci], svc, from, to, dist.miles, start, end, size.code, cab.id, status === 'assigned' ? drivers[u].id : null, channel, channel === 'online',
-          status, q.full, q.discountOnline, q.total, channel === 'online' ? 'paid' : 'unpaid', ids[ci]],
+          status, q.full, q.discountOnline, q.total, channel === 'online' ? 'paid' : 'due_cash', ids[ci], JSON.stringify(q.lines)],
       );
       u++;
     }
+
+    // ID-72, ID-73: a GBP 5 welcome coupon in the wallet of every customer who opted in to offers
+    const cp = await db.query(
+      `INSERT INTO coupons (code, title, amount, expires_at, created_by)
+       VALUES ('WELCOME5', 'GBP 5 off your next journey - thank you for riding with us', 5, now() + interval '60 days',
+               (SELECT id FROM users WHERE email='manager@privatehire.test')) RETURNING id`,
+    );
+    await db.query(
+      "INSERT INTO customer_coupons (offer_id, user_id) SELECT $1, id FROM users WHERE role='customer' AND marketing_consent",
+      [cp.rows[0].id],
+    );
 
     await db.query(
       `INSERT INTO enquiries (user_id, name, email, subject, message) VALUES

@@ -20,7 +20,9 @@ export const serializeService = (s) => ({
   needsAirport: s.needs_airport,
 });
 
-export const serializeSize = (s) => ({ code: s.code, label: s.label, seats: s.seats, multiplier: s.multiplier });
+export const serializeSize = (s) => ({ code: s.code, label: s.label, seats: s.seats, luggage: s.luggage, multiplier: s.multiplier });
+
+export const serializePackage = (p) => ({ code: p.code, label: p.label, hours: p.hours, price: Number(p.price) });
 
 /** Public reference data used by the booking screens (and the future mobile app). */
 router.get(
@@ -36,6 +38,15 @@ router.get(
   wrap(async (_req, res) => {
     const { rows } = await query('SELECT * FROM cab_sizes ORDER BY sort');
     res.json({ cabSizes: rows.map(serializeSize) });
+  }),
+);
+
+/** ID-75: daily hire packages (price for a saloon; bigger cabs use the size multiplier). */
+router.get(
+  '/packages',
+  wrap(async (_req, res) => {
+    const { rows } = await query('SELECT * FROM hire_packages WHERE active ORDER BY sort');
+    res.json({ packages: rows.map(serializePackage) });
   }),
 );
 
@@ -61,7 +72,8 @@ router.get(
   '/settings',
   wrap(async (_req, res) => {
     const { rows } = await query(
-      "SELECT key, value FROM settings WHERE key IN ('online_discount_pct','cancel_window_hours','company_name')",
+      `SELECT key, value FROM settings WHERE key IN ('online_discount_pct','cancel_window_hours','company_name','min_lead_minutes',
+        'max_days_ahead','hold_minutes','min_fare_gbp','night_surcharge_pct','zone_surcharge_gbp','weather_surcharge_pct')`,
     );
     res.json({ settings: Object.fromEntries(rows.map((r) => [r.key, r.value])) });
   }),

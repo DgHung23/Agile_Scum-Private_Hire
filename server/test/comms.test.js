@@ -17,10 +17,7 @@ after(() => t.close());
 const inHours = (h) => new Date(Date.now() + h * 3600_000).toISOString();
 const PAY = { method: 'card', card: { number: '4242 4242 4242 4242', expMonth: 12, expYear: 2031, cvv: '123', holder: 'Alex Morgan' } };
 const book = async (over = {}) => {
-  const r = await t.call('POST', '/bookings', {
-    token: cust,
-    body: { serviceCode: 'local', pickup: 'Brixton', destination: 'Shoreditch', pickupAt: inHours(72), passengers: 2, sizeCode: 'saloon', notifyPref: 'text', payment: PAY, ...over },
-  });
+  const r = await t.book(cust, { serviceCode: 'local', pickup: 'Brixton', destination: 'Shoreditch', pickupAt: inHours(72), passengers: 2, sizeCode: 'saloon', notifyPref: 'text', payment: PAY, ...over });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   return r.body.booking;
 };

@@ -19,10 +19,7 @@ after(() => t.close());
 const inHours = (h) => new Date(Date.now() + h * 3600_000).toISOString();
 const PAY = { method: 'card', card: { number: '4242 4242 4242 4242', expMonth: 12, expYear: 2031, cvv: '123', holder: 'Alex Morgan' } };
 const book = async (over = {}, token = cust) => {
-  const r = await t.call('POST', '/bookings', {
-    token,
-    body: { serviceCode: 'local', pickup: 'Brixton', destination: 'Shoreditch', pickupAt: inHours(72), passengers: 2, sizeCode: 'saloon', notifyPref: 'email', payment: PAY, ...over },
-  });
+  const r = await t.book(token, { serviceCode: 'local', pickup: 'Brixton', destination: 'Shoreditch', pickupAt: inHours(72), passengers: 2, sizeCode: 'saloon', notifyPref: 'email', payment: PAY, ...over });
   return r;
 };
 const complete = async (b) => {
@@ -82,102 +79,109 @@ test('US7.2 staff see reviews and averages by driver and by cab, low ratings fla
 /* ---------------- offers ---------------- */
 
 let offer;
-test('US10.3 staff create an offer code and email it to chosen customers', async () => {
-  const bad = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'x', discountPct: 80, expiresOn: 'soon', customerIds: [] } });
+test('ID-71, ID-72 the Manager creates a fixed-amount coupon and sends it only to opted-in customers', async () => {
+  const bad = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'x', amount: 80, expiresOn: 'soon', customerIds: [] } });
   assert.equal(bad.status, 400);
-  assert.ok(bad.body.error.fields.discountPct && bad.body.error.fields.expiresOn && bad.body.error.fields.customerIds);
-  const past = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'Old offer', discountPct: 10, expiresOn: dateIn(-3), customerIds: [customerId] } });
+  assert.ok(bad.body.error.fields.amount && bad.body.error.fields.expiresOn && bad.body.error.fields.customerIds);
+  const past = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'Old offer', amount: 5, expiresOn: dateIn(-3), customerIds: [customerId] } });
   assert.equal(past.status, 400);
   assert.ok(past.body.error.fields.expiresOn);
+  const patId = (await t.pool.query("SELECT id FROM users WHERE email='pat@example.com'")).rows[0].id;
+  const noConsent = await t.call('POST', '/staff/offers', { token: admin, body: { title: 'For Pat', amount: 5, expiresOn: dateIn(5), customerIds: [patId] } });
+  assert.equal(noConsent.status, 400, 'Pat did not opt in to offers');
 
-  const ok = await t.call('POST', '/staff/offers', { token: admin, body: { code: 'welcome20', title: '20% off your next airport run', discountPct: 20, expiresOn: dateIn(14), customerIds: [customerId] } });
+  const ok = await t.call('POST', '/staff/offers', { token: admin, body: { code: 'welcome5', title: 'GBP 5 off your next airport run', amount: 5, expiresOn: dateIn(14), customerIds: [customerId, patId] } });
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
-  assert.equal(ok.body.offer.code, 'WELCOME20');
-  assert.equal(ok.body.sent, 1);
+  assert.equal(ok.body.offer.code, 'WELCOME5');
+  assert.equal(ok.body.offer.amount, 5);
+  assert.equal(ok.body.sent, 1, 'only the opted-in customer receives it');
   offer = ok.body.offer;
   const mail = await t.pool.query("SELECT * FROM notifications WHERE kind='offer' AND to_addr='customer@privatehire.test'");
   assert.equal(mail.rowCount, 1);
-  assert.ok(mail.rows[0].body.includes('WELCOME20') && mail.rows[0].body.includes('20%'));
-  assert.equal((await t.call('POST', '/staff/offers', { token: admin, body: { code: 'WELCOME20', title: 'dup offer', discountPct: 5, expiresOn: dateIn(5), customerIds: [customerId] } })).status, 409);
+  assert.ok(mail.rows[0].body.includes('WELCOME5') && mail.rows[0].body.includes('GBP 5.00'));
+  assert.equal((await t.call('POST', '/staff/offers', { token: admin, body: { code: 'WELCOME5', title: 'dup offer', amount: 5, expiresOn: dateIn(5), customerIds: [customerId] } })).status, 409);
   assert.equal((await t.call('POST', '/staff/offers', { token: cust, body: {} })).status, 403);
+  assert.equal((await t.call('POST', '/staff/offers', { token: staff, body: {} })).status, 403, 'Call Centre Staff cannot create offers');
 });
 
-test('US10.4 customer sees their offers and can validate a code', async () => {
+test('ID-73 the coupon is in the wallet (My coupons) and can be checked', async () => {
   const mine = await t.call('GET', '/offers/mine', { token: cust });
-  assert.deepEqual(mine.body.offers.map((o) => o.code), ['WELCOME20']);
-  const v = await t.call('POST', '/offers/validate', { token: cust, body: { code: ' welcome20 ' } });
+  assert.deepEqual(mine.body.offers.map((o) => o.code), ['WELCOME5']);
+  const v = await t.call('POST', '/offers/validate', { token: cust, body: { code: ' welcome5 ' } });
   assert.equal(v.status, 200);
-  assert.equal(v.body.offer.discountPct, 20);
+  assert.equal(v.body.offer.amount, 5);
   const nope = await t.call('POST', '/offers/validate', { token: cust, body: { code: 'NOPE1234' } });
   assert.equal(nope.status, 400);
   assert.ok(nope.body.error.fields.offerCode);
 });
 
-test('US10.4 a code that belongs to other customers looks like an invalid code', async () => {
+test('ID-73 a coupon that belongs to other customers looks like an invalid code', async () => {
   const other = await t.login('pat@example.com', 'Passw0rd1234');
-  const r = await t.call('POST', '/offers/validate', { token: other, body: { code: 'WELCOME20' } });
+  const r = await t.call('POST', '/offers/validate', { token: other, body: { code: 'WELCOME5' } });
   assert.equal(r.status, 400);
-  assert.equal(r.body.error.fields.offerCode, 'That offer code is not valid. Check it and try again.');
+  assert.equal(r.body.error.fields.offerCode, 'That coupon code is not valid. Check it and try again.');
   assert.equal((await t.call('GET', '/offers/mine', { token: other })).body.offers.length, 0);
 });
 
-test('US10.4 valid code lowers the price, stacked on the 15% online discount', async () => {
+test('ID-31, ID-73 the coupon comes off after the 15% online discount', async () => {
   const q = { serviceCode: 'local', pickup: 'Brixton', destination: 'Shoreditch', pickupAt: inHours(80), passengers: 2 };
   const plain = (await t.call('POST', '/bookings/quote', { token: cust, body: q })).body.sizes[0].price;
-  const withOffer = await t.call('POST', '/bookings/quote', { token: cust, body: { ...q, offerCode: 'welcome20' } });
+  const withOffer = await t.call('POST', '/bookings/quote', { token: cust, body: { ...q, offerCode: 'welcome5' } });
   assert.equal(withOffer.status, 200);
   const p = withOffer.body.sizes[0].price;
-  assert.equal(withOffer.body.offer.code, 'WELCOME20');
+  assert.equal(withOffer.body.offer.code, 'WELCOME5');
   assert.equal(p.full, plain.full);
   assert.equal(p.discountOnline, plain.discountOnline);
-  assert.equal(p.discountOffer, Math.round((plain.total * 20)) / 100);
-  assert.equal(p.total, Math.round((plain.total - p.discountOffer) * 100) / 100);
-  assert.equal((await t.call('POST', '/bookings/quote', { body: { ...q, offerCode: 'WELCOME20' } })).status, 400, 'anonymous quotes cannot use codes');
+  assert.equal(p.discountOffer, 5);
+  assert.equal(p.total, Math.round((plain.total - 5) * 100) / 100);
+  assert.equal((await t.call('POST', '/bookings/quote', { body: { ...q, offerCode: 'WELCOME5' } })).status, 400, 'anonymous quotes cannot use coupons');
 });
 
 let used;
-test('US10.4 booking with the code applies it, records it, and the code can only be used once', async () => {
-  const r = await book({ pickupAt: inHours(90), offerCode: 'WELCOME20' });
+test('ID-73 booking with the coupon applies it once, records the applied discounts, and it can only be used once', async () => {
+  const r = await book({ pickupAt: inHours(90), offerCode: 'WELCOME5' });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   used = r.body.booking;
-  assert.equal(used.price.offerCode, 'WELCOME20');
-  assert.ok(used.price.discountOffer > 0);
+  assert.equal(used.price.offerCode, 'WELCOME5');
+  assert.equal(used.price.discountOffer, 5);
   assert.equal(r.body.payment.amount, used.price.total, 'charged the discounted total');
-  assert.equal((await t.pool.query('SELECT 1 FROM offer_redemptions')).rowCount, 1);
+  assert.equal((await t.pool.query('SELECT 1 FROM coupon_redemptions')).rowCount, 1);
+  const applied = (await t.pool.query('SELECT kind, sequence FROM applied_discounts WHERE booking_id=$1 ORDER BY sequence', [used.id])).rows;
+  assert.deepEqual(applied.map((a) => a.kind), ['programme', 'coupon']);
   const rc = (await t.call('GET', `/bookings/${used.id}/receipt`, { token: cust })).body.receipt;
-  assert.equal(rc.price.offerCode, 'WELCOME20');
+  assert.equal(rc.price.offerCode, 'WELCOME5');
 
-  const again = await book({ pickupAt: inHours(91), offerCode: 'WELCOME20' });
+  const again = await book({ pickupAt: inHours(91), offerCode: 'WELCOME5' });
   assert.equal(again.status, 400);
-  assert.equal(again.body.error.fields.offerCode, 'You have already used that offer code.');
-  assert.equal((await t.call('GET', '/offers/mine', { token: cust })).body.offers.length, 0, 'used offers disappear from My offers');
+  assert.equal(again.body.error.fields.offerCode, 'You have already used that coupon.');
+  assert.equal((await t.call('GET', '/offers/mine', { token: cust })).body.offers.length, 0, 'used coupons leave My coupons');
 });
 
-test('US10.4 cancelling the booking gives the code back; amending keeps the discount', async () => {
+test('ID-73 cancelling the booking gives the coupon back; amending keeps the same amount off', async () => {
   const am = await t.call('POST', `/bookings/${used.id}/amend`, { token: cust, body: { pickup: used.pickup, destination: used.destination, pickupAt: used.pickupAt, passengers: 2, sizeCode: 'estate' } });
   assert.equal(am.status, 200, JSON.stringify(am.body));
-  assert.equal(am.body.booking.price.offerCode, 'WELCOME20');
-  assert.ok(am.body.booking.price.discountOffer > 0, 'offer still applied after amending');
+  assert.equal(am.body.booking.price.offerCode, 'WELCOME5');
+  assert.equal(am.body.booking.price.discountOffer, 5, 'coupon still applied after amending');
   assert.equal((await t.call('POST', `/bookings/${used.id}/cancel`, { token: cust, body: {} })).status, 200);
-  assert.equal((await t.call('GET', '/offers/mine', { token: cust })).body.offers.length, 1, 'code is usable again');
+  assert.equal((await t.call('GET', '/offers/mine', { token: cust })).body.offers.length, 1, 'coupon is usable again');
 });
 
-test('US10.4 expired and deactivated codes are rejected', async () => {
-  await t.call('POST', '/staff/offers', { token: admin, body: { code: 'SOON1234', title: 'Short offer', discountPct: 10, expiresOn: dateIn(1), customerIds: [customerId] } });
-  await t.pool.query("UPDATE offers SET expires_at = now() - interval '1 hour' WHERE code='SOON1234'");
+test('ID-73 expired and deactivated coupons are rejected', async () => {
+  await t.call('POST', '/staff/offers', { token: admin, body: { code: 'SOON1234', title: 'Short offer', amount: 3, expiresOn: dateIn(1), customerIds: [customerId] } });
+  await t.pool.query("UPDATE coupons SET expires_at = now() - interval '1 hour' WHERE code='SOON1234'");
   const exp = await t.call('POST', '/offers/validate', { token: cust, body: { code: 'SOON1234' } });
-  assert.equal(exp.body.error.fields.offerCode, 'That offer code has expired.');
-  const id = (await t.pool.query("SELECT id FROM offers WHERE code='WELCOME20'")).rows[0].id;
+  assert.equal(exp.body.error.fields.offerCode, 'That coupon has expired.');
+  const id = (await t.pool.query("SELECT id FROM coupons WHERE code='WELCOME5'")).rows[0].id;
   assert.equal((await t.call('POST', `/staff/offers/${id}/deactivate`, { token: admin })).status, 200);
-  assert.equal((await t.call('POST', '/offers/validate', { token: cust, body: { code: 'WELCOME20' } })).status, 400);
+  assert.equal((await t.call('POST', '/offers/validate', { token: cust, body: { code: 'WELCOME5' } })).status, 400);
 });
 
-test('R14 recommendations: personal codes for repeat customers, based on what they book most', async () => {
-  const before = (await t.pool.query('SELECT count(*)::int AS n FROM offers')).rows[0].n;
-  const r = await t.call('POST', '/staff/offers/recommend', { token: admin, body: { discountPct: 10, validDays: 30, minTrips: 2 } });
+test('R14 recommendations: personal coupons for opted-in repeat customers, based on what they book most', async () => {
+  const before = (await t.pool.query('SELECT count(*)::int AS n FROM coupons')).rows[0].n;
+  const r = await t.call('POST', '/staff/offers/recommend', { token: admin, body: { amount: 4, validDays: 30, minTrips: 2 } });
   assert.equal(r.status, 201);
-  assert.equal(r.body.sent, 1, 'only the demo customer has 2+ trips');
-  const after = (await t.pool.query('SELECT count(*)::int AS n FROM offers')).rows[0].n;
+  assert.equal(r.body.sent, 1, 'only the demo customer has 2+ trips and opted in');
+  const after = (await t.pool.query('SELECT count(*)::int AS n FROM coupons')).rows[0].n;
   assert.equal(after, before + 1);
   const mail = (await t.pool.query("SELECT body FROM notifications WHERE kind='offer' ORDER BY created_at DESC LIMIT 1")).rows[0];
   assert.match(mail.body, /often book Local journey/);

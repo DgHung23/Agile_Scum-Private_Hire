@@ -10,7 +10,10 @@ import { normalisePostcode, profileFields } from '../schemas.js';
 import { sendEmail, templates } from '../services/notify.js';
 import { createBooking, getSettings, loadBookingRow, serializeBooking } from '../services/booking.js';
 import { cancelBooking, amendBooking } from '../services/changes.js';
-import { cardInputSchema, recordDeclined, serializePayment } from '../services/payments.js';
+import { recordDeclined, serializePayment } from '../services/payments.js';
+import { payStaff, staffPaymentSchema } from '../services/checkout.js';
+import { audit } from '../services/audit.js';
+import { NOT_TRIP } from '../services/availability.js';
 import { journeySchema } from './bookings.js';
 
 export const router = Router();
@@ -159,7 +162,7 @@ router.get(
     if (!rows[0]) throw notFound('Customer not found');
     await requireVerified(req, rows[0].id);
     const stats = await query(
-      `SELECT count(*)::int AS trips, COALESCE(sum(total) FILTER (WHERE status <> 'cancelled'), 0) AS spend
+      `SELECT count(*)::int AS trips, COALESCE(sum(total) FILTER (WHERE status NOT IN ${NOT_TRIP}), 0) AS spend
          FROM bookings WHERE customer_id=$1`,
       [rows[0].id],
     );
@@ -214,13 +217,6 @@ router.post(
 
 /* ---------------- bookings made by staff (US9.5, R3, R13) ---------------- */
 
-const staffPaymentSchema = z
-  .discriminatedUnion('method', [
-    z.object({ method: z.literal('card'), card: cardInputSchema }),
-    z.object({ method: z.literal('cash') }),
-  ])
-  .optional();
-
 const staffBookingSchema = journeySchema.extend({
   customerId: z.string({ error: 'Choose a customer' }).uuid('Choose a customer'),
   channel: z.enum(['phone', 'in_person'], { error: 'Choose Phone or In person' }),
@@ -243,15 +239,20 @@ router.post(
 
     let out;
     try {
-      out = await tx((db) =>
-        createBooking(db, {
+      out = await tx(async (db) => {
+        const created = await createBooking(db, {
           customer,
           input: d,
-          channel: d.channel, // phone / in_person: NO 15% online discount (R3, US9.5 criterion 2)
+          channel: d.channel, // phone / in_person: NO 15% online discount (R3, ID-35)
           createdBy: req.user.id,
-          payment: d.payment || null,
-        }),
-      );
+          status: 'confirmed',
+        });
+        const paid = await payStaff(db, { rows: created.rows, customer, payment: d.payment });
+        for (const r of created.rows) {
+          await audit(db, req, 'booking.create', 'booking', r.id, { ref: r.ref, channel: d.channel, total: r.total, payment: d.payment?.method || 'driver' });
+        }
+        return { row: paid.rows[0], rows: paid.rows, payment: paid.payments[0] || null, settings: created.settings };
+      });
     } catch (e) {
       if (e.code === 'payment_declined') {
         await recordDeclined({ userId: customer.id, amount: 0, method: d.payment?.method || 'card', card: e.card, reason: e.message }).catch(() => {});
@@ -260,6 +261,7 @@ router.post(
     }
     res.status(201).json({
       booking: serializeBooking(out.row, { cancelWindowHours: out.settings.cancelWindowHours, forStaff: true }),
+      bookings: out.rows.map((r) => serializeBooking(r, { cancelWindowHours: out.settings.cancelWindowHours, forStaff: true })),
       payment: out.payment ? serializePayment(out.payment) : null,
     });
   }),
@@ -267,7 +269,7 @@ router.post(
 
 const bookingList = z.object({
   when: z.enum(['today', 'upcoming', 'past', 'all']).default('upcoming'),
-  status: z.enum(['confirmed', 'assigned', 'on_route', 'completed', 'cancelled']).optional(),
+  status: z.enum(['pending_payment', 'confirmed', 'assigned', 'on_route', 'arrived', 'in_progress', 'completed', 'cancelled', 'company_cancelled', 'no_show', 'interrupted']).optional(),
   q: z.string().trim().max(60).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });

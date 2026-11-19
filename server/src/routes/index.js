@@ -10,6 +10,7 @@ import { router as dispatch } from './dispatch.js';
 import { router as reviews, staffRouter as staffReviews } from './reviews.js';
 import { customerRouter as offers, staffRouter as staffLoyalty } from './loyalty.js';
 import { router as admin } from './admin.js';
+import { router as pricing } from './pricing.js';
 
 /** Central route registry. Each module adds its router here (see docs/SPRINTS.md). */
 export function registerRoutes(api) {
@@ -27,5 +28,6 @@ export function registerRoutes(api) {
   api.use('/staff', dispatch);
   api.use('/staff', staffReviews);
   api.use('/staff', staffLoyalty);
+  api.use('/staff', pricing);
   api.use('/admin', admin);
 }

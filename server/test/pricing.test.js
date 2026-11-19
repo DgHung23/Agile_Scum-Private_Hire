@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeQuote, estimateDistance, estimateDuration, haversineMiles } from '../src/services/pricing.js';
+import { isNight, computeQuote, estimateDistance, estimateDuration, haversineMiles } from '../src/services/pricing.js';
 
 const local = { code: 'local', label: 'Local journey', baseFare: 4, perMile: 2.2, minFare: 8, extraFee: 0, isHourly: false };
 const airport = { code: 'airport', label: 'Airport transfer', baseFare: 8, perMile: 2, minFare: 25, extraFee: 5, isHourly: false };
@@ -46,12 +46,42 @@ test('daily hire is charged by the hour', () => {
   assert.equal(q.full, 168);
 });
 
-test('US10.4: an offer code stacks on top of the online discount', () => {
-  const q = computeQuote({ service: daily, size: saloon, hours: 4, channel: 'online', onlineDiscountPct: 15, offerPct: 10 });
-  assert.equal(q.full, 112);
-  assert.equal(q.discountOnline, 16.8);
-  assert.equal(q.discountOffer, 9.52);
-  assert.equal(q.total, 85.68);
+test('ID-31, ID-73 report worked example: GBP 40 less 15% is 34.00, less a GBP 5 coupon is 29.00', () => {
+  const flat = { isHourly: false, baseFare: 0, perMile: 1, minFare: 0, extraFee: 0, label: 'Local' };
+  const q = computeQuote({ service: flat, size: saloon, miles: 40, channel: 'online', onlineDiscountPct: 15, couponAmount: 5 });
+  assert.equal(q.full, 40);
+  assert.equal(q.discountOnline, 6);
+  assert.equal(q.discountOffer, 5);
+  assert.equal(q.total, 29);
+  assert.deepEqual(q.discounts.map((d) => [d.kind, d.sequence]), [['programme', 1], ['coupon', 2]], 'programme first, then the coupon');
+});
+
+test('ID-31 the fare never falls below GBP 5 after discounts', () => {
+  const flat = { isHourly: false, baseFare: 0, perMile: 1, minFare: 0, extraFee: 0, label: 'Local' };
+  const q = computeQuote({ service: flat, size: saloon, miles: 8, channel: 'online', onlineDiscountPct: 15, couponAmount: 10, minFare: 5 });
+  assert.equal(q.total, 5);
+  assert.equal(q.discountOffer, 1.8, 'only part of the coupon is used');
+  assert.equal(q.floorApplied, true);
+});
+
+test('ID-52 surcharges: night %, central zone fee and bad weather %, shown as lines', () => {
+  const flat = { isHourly: false, baseFare: 0, perMile: 1, minFare: 0, extraFee: 0, label: 'Local' };
+  const q = computeQuote({
+    service: flat, size: saloon, miles: 20, channel: 'phone', onlineDiscountPct: 15,
+    night: true, inZone: true, surcharges: { nightPct: 20, zoneFee: 2.5, weatherPct: 10 },
+  });
+  assert.equal(q.surcharge, 4 + 2.5 + 2);
+  assert.equal(q.full, 28.5);
+  assert.equal(q.lines.filter((l) => l.kind === 'surcharge').length, 3);
+  assert.ok(isNight('2026-07-20T21:30:00Z'), '22:30 British Summer Time is night');
+  assert.ok(!isNight('2026-07-20T12:00:00Z'));
+  assert.ok(isNight('2026-12-20T23:30:00Z'), '23:30 GMT is night');
+});
+
+test('ID-75 a daily hire package is priced per package and cab size', () => {
+  const q = computeQuote({ service: daily, size: { ...saloon, multiplier: 1.5, label: 'Seven-seater' }, pkg: { code: 'half_day', label: 'Half day (4 hours)', hours: 4, price: 105 }, channel: 'online', onlineDiscountPct: 15 });
+  assert.equal(q.full, 157.5);
+  assert.match(q.lines[0].label, /Half day/);
 });
 
 test('distance: known places use road-adjusted great-circle distance; free text is a stable estimate', () => {

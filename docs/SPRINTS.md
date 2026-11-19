@@ -122,3 +122,4 @@ Story keys below are the report's Jira keys; `docs/TRACEABILITY.md` maps them to
 | Module | Branch | Stories | Evidence |
 |---|---|---|---|
 | V1 Accounts and access | `backlog-v3/accounts-access` | ID-11, ID-12, ID-13, ID-15, ID-17, ID-18, ID-20, N01, N02, N03, N04 | 107 API tests; browser run: register, verify link, HttpOnly cookie, role-based staff portal, admin pages at 1366px and 390px |
+| V2 Book a cab, availability and payment | `backlog-v3/booking-payment` | ID-29, ID-30, ID-31, ID-32, ID-38, ID-39, ID-40, ID-41, ID-48, ID-49, ID-50, ID-51, ID-52, ID-53, ID-54, ID-55, ID-56, ID-57, ID-63, ID-73, ID-75, ID-76, N13, N15, N16, N25 | 128 API tests (worked example GBP 40 - 15% - GBP 5 = GBP 29.00, GBP 5 floor, 3D Secure wrong code / decline / retry, hold expiry, return journey, wheelchair cab); browser run of card + 3D Secure, PayPal round trip with return, cash, declined retry, visitor estimate, manager prices |

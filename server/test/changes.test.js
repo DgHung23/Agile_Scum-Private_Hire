@@ -20,7 +20,7 @@ const base = (over = {}) => ({
   sizeCode: 'saloon', notifyPref: 'email', payment: PAY, ...over,
 });
 const make = async (over) => {
-  const r = await t.call('POST', '/bookings', { token: cust, body: base(over) });
+  const r = await t.book(cust, base(over));
   assert.equal(r.status, 201, JSON.stringify(r.body));
   return r.body.booking;
 };
@@ -49,13 +49,13 @@ test('US8.1 criterion 2/3: cancelling twice is refused and a cancelled booking f
   const when = inHours(96);
   const bookings = [];
   for (let i = 0; i < 3; i++) bookings.push(await make({ sizeCode: 'minibus', passengers: 8, pickupAt: when }));
-  const full = await t.call('POST', '/bookings', { token: cust, body: base({ sizeCode: 'minibus', passengers: 8, pickupAt: when }) });
+  const full = await t.book(cust, base({ sizeCode: 'minibus', passengers: 8, pickupAt: when }));
   assert.equal(full.status, 409);
   assert.equal((await t.call('POST', `/bookings/${bookings[0].id}/cancel`, { token: cust, body: {} })).status, 200);
   const again = await t.call('POST', `/bookings/${bookings[0].id}/cancel`, { token: cust, body: {} });
   assert.equal(again.status, 409);
   assert.equal(again.body.error.code, 'not_modifiable');
-  const retry = await t.call('POST', '/bookings', { token: cust, body: base({ sizeCode: 'minibus', passengers: 8, pickupAt: when }) });
+  const retry = await t.book(cust, base({ sizeCode: 'minibus', passengers: 8, pickupAt: when }));
   assert.equal(retry.status, 201, 'the released minibus can be booked again');
 });
 
@@ -155,7 +155,7 @@ test('US8.2 criterion 2: amending re-checks availability and keeps the old booki
 test('US8.2 amending validates like booking (past date, same pickup/destination, seats)', async () => {
   const b = await make();
   const bad = await t.call('POST', `/bookings/${b.id}/amend`, {
-    token: cust, body: { pickup: 'X', destination: 'x', pickupAt: inHours(-5), passengers: 9, sizeCode: 'saloon' },
+    token: cust, body: { pickup: 'X', destination: 'x', pickupAt: inHours(-5), passengers: 3, sizeCode: 'saloon' },
   });
   assert.equal(bad.status, 400);
   assert.ok(bad.body.error.fields.pickupAt && bad.body.error.fields.destination);

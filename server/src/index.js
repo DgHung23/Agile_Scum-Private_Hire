@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { config } from './config.js';
 import { migrate } from './migrate.js';
 import { pool } from './db.js';
+import { startJobs } from './jobs.js';
 
 async function main() {
   await migrate();
@@ -9,6 +10,7 @@ async function main() {
   if (process.env.SEED_ON_START === 'demo') await (await import('./seedDemo.js')).seedDemo();
   else if (process.env.SEED_ON_START === 'true') await (await import('./seed.js')).seed();
   const app = createApp();
+  startJobs();
   const server = app.listen(config.port, () => {
     console.log(`[api] Private Hire API listening on http://localhost:${config.port}  (${config.env})`);
   });

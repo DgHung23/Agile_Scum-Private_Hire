@@ -199,7 +199,7 @@ router.get(
     const stats = (
       await query(
         `SELECT
-           count(*) FILTER (WHERE (pickup_at AT TIME ZONE 'Europe/London')::date = (now() AT TIME ZONE 'Europe/London')::date AND status <> 'cancelled')::int AS today,
+           count(*) FILTER (WHERE (pickup_at AT TIME ZONE 'Europe/London')::date = (now() AT TIME ZONE 'Europe/London')::date AND status NOT IN ('cancelled','company_cancelled','abandoned'))::int AS today,
            count(*) FILTER (WHERE status = 'confirmed' AND end_at >= now())::int AS needs_driver,
            count(*) FILTER (WHERE status = 'on_route')::int AS on_route,
            count(*) FILTER (WHERE priority AND status IN ('confirmed','assigned') AND end_at >= now())::int AS priority_open

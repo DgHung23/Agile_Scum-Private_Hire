@@ -2,24 +2,29 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { money } from '../format.js';
-import { Alert } from '../ui.jsx';
 import CardForm, { BLANK_CARD } from './CardForm.jsx';
 import { onlyDigits, parseExpiry, validateCardForm } from '../validators.js';
 
+const METHODS = [
+  ['card', 'card', 'Credit or debit card', 'Visa, Mastercard, American Express'],
+  ['paypal', 'lock', 'PayPal', 'Approve on PayPal, then come back'],
+  ['bank', 'building', 'Pay by bank', 'Approve in your banking app'],
+  ['cash', 'tag', 'Cash to the driver', 'Pay at the end of the journey'],
+];
+
 /**
- * Payment choices for a booking: saved card, new card, or PayPal (US5.3, US5.4, US1.4).
- * Card details are kept in React state only and are sent once to the API - never stored in the browser.
+ * Payment choices for a booking (ID-53 card, ID-55 PayPal, ID-56 cash, ID-57 bank, ID-14 saved cards).
+ * Card details stay in React state and are sent once to the API - never stored in the browser.
  * `onSubmit(paymentPayload)` returns a promise. `serverErrors` are API field errors keyed like `payment.card.number`.
  */
-export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, serverErrors = {}, allowSave = true, submitLabel }) {
+export default function PaymentStep({ amount, onSubmit, busy, serverErrors = {}, allowSave = true, submitLabel }) {
   const [cards, setCards] = useState(null);
-  const [method, setMethod] = useState(paypal?.token ? 'paypal' : 'card');
+  const [method, setMethod] = useState('card');
   const [choice, setChoice] = useState('new'); // 'new' or a saved card id
   const [card, setCard] = useState(BLANK_CARD);
   const [savedCvv, setSavedCvv] = useState('');
   const [saveCard, setSaveCard] = useState(false);
   const [errors, setErrors] = useState({});
-  const [ppBusy, setPpBusy] = useState(false);
 
   useEffect(() => {
     api.get('/payments/cards').then((r) => {
@@ -41,10 +46,7 @@ export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, 
   const submit = async (ev) => {
     ev.preventDefault();
     setErrors({});
-    if (method === 'paypal') {
-      if (!paypal?.token) return setErrors({ paypal: 'Approve the payment in PayPal first' });
-      return onSubmit({ method: 'paypal', token: paypal.token });
-    }
+    if (method !== 'card') return onSubmit({ method });
     if (choice !== 'new') {
       const c = cards.find((x) => x.id === choice);
       const want = c.brand === 'amex' ? 4 : 3;
@@ -64,28 +66,26 @@ export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, 
     });
   };
 
-  const startPayPal = async () => {
-    setPpBusy(true);
-    try {
-      await onPayPal();
-    } finally {
-      setPpBusy(false);
-    }
-  };
+  const label =
+    method === 'cash'
+      ? `Confirm booking - pay ${money(amount)} to the driver`
+      : method === 'paypal'
+        ? `Continue to PayPal - ${money(amount)}`
+        : method === 'bank'
+          ? `Continue to your bank - ${money(amount)}`
+          : submitLabel || `Pay ${money(amount)} and confirm`;
 
   return (
     <form className="stack" onSubmit={submit} noValidate>
       <div className="card stack">
         <h3>Pay for your booking</h3>
         <div className="option-grid">
-          <button type="button" className={`option ${method === 'card' ? 'selected' : ''}`} aria-pressed={method === 'card'} onClick={() => setMethod('card')}>
-            <span className="o-icon"><Icon name="card" /></span>
-            <span><div className="o-title">Credit or debit card</div><div className="o-sub">Visa, Mastercard, American Express</div></span>
-          </button>
-          <button type="button" className={`option ${method === 'paypal' ? 'selected' : ''}`} aria-pressed={method === 'paypal'} onClick={() => setMethod('paypal')}>
-            <span className="o-icon"><Icon name="lock" /></span>
-            <span><div className="o-title">PayPal</div><div className="o-sub">Pay without entering card details</div></span>
-          </button>
+          {METHODS.map(([m, icon, title, sub]) => (
+            <button key={m} type="button" className={`option ${method === m ? 'selected' : ''}`} aria-pressed={method === m} onClick={() => setMethod(m)}>
+              <span className="o-icon"><Icon name={icon} /></span>
+              <span><div className="o-title">{title}</div><div className="o-sub">{sub}</div></span>
+            </button>
+          ))}
         </div>
 
         {method === 'card' && (
@@ -111,7 +111,7 @@ export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, 
             {choice !== 'new' ? (
               <div className="field" style={{ maxWidth: 220 }}>
                 <label htmlFor="saved-cvv">Security code</label>
-                <input id="saved-cvv" className={`input`} inputMode="numeric" value={savedCvv} maxLength={4} aria-invalid={!!errors.savedCvv}
+                <input id="saved-cvv" className="input" inputMode="numeric" value={savedCvv} maxLength={4} aria-invalid={!!errors.savedCvv}
                   onChange={(e) => setSavedCvv(e.target.value.replace(/\D/g, ''))} autoComplete="cc-csc" />
                 {errors.savedCvv && <span className="field-error" role="alert">{errors.savedCvv}</span>}
               </div>
@@ -132,31 +132,19 @@ export default function PaymentStep({ amount, paypal, onPayPal, onSubmit, busy, 
                 Visa <span className="kbd">4242 4242 4242 4242</span> &middot; Mastercard <span className="kbd">5555 5555 5555 4444</span> &middot;
                 Amex <span className="kbd">3782 822463 10005</span><br />
                 Declined <span className="kbd">4000 0000 0000 0002</span> &middot; No funds <span className="kbd">4000 0000 0000 9995</span>. Use any future
-                expiry, any 3-digit code (4 for Amex).
+                expiry, any 3-digit code (4 for Amex). The bank check code is <span className="kbd">123456</span>.
               </p>
             </details>
           </div>
         )}
-
-        {method === 'paypal' && (
-          <div className="stack">
-            {paypal?.token ? (
-              <Alert tone="success">PayPal payment approved{paypal.payer ? ` for ${paypal.payer}` : ''}. Press the button below to complete your booking.</Alert>
-            ) : (
-              <>
-                <p className="muted small">You will be taken to PayPal to approve {money(amount)}, then brought straight back here.</p>
-                <button type="button" className="btn btn-secondary" onClick={startPayPal} disabled={ppBusy}>{ppBusy ? 'Opening PayPal...' : 'Continue to PayPal'}</button>
-                {errors.paypal && <span className="field-error" role="alert">{errors.paypal}</span>}
-              </>
-            )}
-          </div>
+        {method === 'cash' && <p className="muted small">Your booking is confirmed now. Pay the driver {money(amount)} in cash when the journey ends; your receipt follows.</p>}
+        {(method === 'paypal' || method === 'bank') && (
+          <p className="muted small">We hold your cab while you approve {money(amount)} with {method === 'paypal' ? 'PayPal' : 'your bank'}, then bring you straight back.</p>
         )}
       </div>
 
-      <p className="tiny center"><Icon name="lock" size={12} /> Card details are sent securely and checked with the bank before your booking is confirmed.</p>
-      <button className="btn btn-lg btn-block" disabled={busy || (method === 'paypal' && !paypal?.token)}>
-        {busy ? 'Processing payment...' : submitLabel || `Pay ${money(amount)} and confirm`}
-      </button>
+      <p className="tiny center"><Icon name="lock" size={12} /> Card payments are confirmed with your bank (3D Secure) before your booking is confirmed.</p>
+      <button className="btn btn-lg btn-block" disabled={busy}>{busy ? 'Processing payment...' : label}</button>
     </form>
   );
 }

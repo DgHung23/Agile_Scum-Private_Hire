@@ -83,18 +83,18 @@ test('US3.1 airport services need an airport at one end; daily hire needs valid 
 
 test('US3.5 booking requires a customer login', async () => {
   assert.equal((await t.call('POST', '/bookings', { body: journey() })).status, 401);
-  assert.equal((await t.call('POST', '/bookings', { token: staff, body: journey() })).status, 403);
+  assert.equal((await t.book(staff, journey())).status, 403);
 });
 
 test('US3.3 too many passengers for the chosen cab is rejected', async () => {
-  const r = await t.call('POST', '/bookings', { token: cust, body: journey({ passengers: 6, sizeCode: 'estate' }) });
+  const r = await t.book(cust, journey({ passengers: 6, sizeCode: 'estate' }));
   assert.equal(r.status, 400);
   assert.ok(r.body.error.fields.passengers);
 });
 
 let first;
 test('US3.5 / US3.4 / US3.7 / US4.2 confirm a booking: reference, 15% off, priority, email', async () => {
-  const r = await t.call('POST', '/bookings', { token: cust, body: journey({ notifyPref: 'both' }) });
+  const r = await t.book(cust, journey({ notifyPref: 'both' }));
   assert.equal(r.status, 201, JSON.stringify(r.body));
   first = r.body.booking;
   assert.match(first.ref, /^PH-[A-Z0-9]{6}$/);
@@ -131,10 +131,10 @@ test('US5.1 when every cab of a size is taken the customer gets alternatives', a
   const when = day(8, 15);
   const body = () => journey({ pickupAt: when, sizeCode: 'minibus', passengers: 7, pickup: 'Wembley Stadium', destination: 'Heathrow Airport (Terminal 2)', serviceCode: 'airport' });
   for (let i = 0; i < 3; i++) {
-    const ok = await t.call('POST', '/bookings', { token: cust, body: body(i) });
+    const ok = await t.book(cust, body(i));
     assert.equal(ok.status, 201, `minibus ${i + 1} of 3 should be available`);
   }
-  const full = await t.call('POST', '/bookings', { token: cust, body: body(3) });
+  const full = await t.book(cust, body(3));
   assert.equal(full.status, 409);
   assert.equal(full.body.error.code, 'no_availability');
   assert.ok(full.body.error.alternatives.sizes.some((s) => s.code === 'mpv7'), 'offers a seven-seater instead');
@@ -149,7 +149,7 @@ test('US5.1 when every cab of a size is taken the customer gets alternatives', a
 test('US5.1 parallel requests never double-book a cab', async () => {
   const when = day(9, 9);
   const reqs = Array.from({ length: 6 }, () =>
-    t.call('POST', '/bookings', { token: cust, body: journey({ pickupAt: when, sizeCode: 'mpv6', passengers: 5 }) }),
+    t.book(cust, journey({ pickupAt: when, sizeCode: 'mpv6', passengers: 5 })),
   );
   const res = await Promise.all(reqs);
   const created = res.filter((r) => r.status === 201).length;

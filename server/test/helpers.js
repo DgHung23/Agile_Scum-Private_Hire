@@ -42,9 +42,29 @@ export async function startServer({ seedData = true } = {}) {
     const { rows } = await pool.query('SELECT id, email, full_name FROM users WHERE email=lower($1)', [body.email || '']);
     return { ...r, user: rows[0] };
   };
+  /**
+   * Online booking as a customer does it: accept the terms, create (Pending payment), then finish the 3D Secure
+   * check with the test code, or approve PayPal / bank on the simulated provider page. Returns the final response.
+   */
+  const book = async (token, body, { code = '123456', approve = true } = {}) => {
+    const r = await call('POST', '/bookings', { token, body: body && { acceptTerms: true, ...body } });
+    return finishPayment(token, r, { code, approve });
+  };
+  const finishPayment = async (token, r, { code = '123456', approve = true } = {}) => {
+    if (r.status !== 202) return r;
+    const a = r.body.nextAction;
+    if (a.type === '3ds') return call('POST', `/bookings/${a.bookingId}/3ds`, { token, body: { challengeId: a.challengeId, code } });
+    if (approve) {
+      await call('POST', `/payments/redirect/${a.token}/approve`, {
+        token,
+        body: a.provider === 'paypal' ? { email: 'payer@example.com' } : { bankName: 'Monzo' },
+      });
+    } else await call('POST', `/payments/redirect/${a.token}/cancel`, { token });
+    return call('POST', `/bookings/${a.bookingId}/redirect-complete`, { token, body: { token: a.token } });
+  };
   const close = async () => {
     await new Promise((r) => server.close(r));
     await pool.end();
   };
-  return { url, call, login, register, close, pool };
+  return { url, call, login, register, book, finishPayment, close, pool };
 }

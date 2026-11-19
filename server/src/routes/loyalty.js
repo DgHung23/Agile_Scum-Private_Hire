@@ -1,10 +1,11 @@
 import { Router } from 'express';
+import { NOT_TRIP } from '../services/availability.js';
 import { z } from 'zod';
 import { query, tx } from '../db.js';
 import { customerOnly, managerOnly } from '../middleware/auth.js';
 import { body, queryOf, wrap } from '../middleware/validate.js';
 import { HttpError, badRequest } from '../errors.js';
-import { generateCode, normCode, resolveOffer, sendOffer, serializeOffer, tierFor } from '../services/offers.js';
+import { generateCode, normCode, resolveCoupon, sendOffer, serializeOffer, tierFor } from '../services/offers.js';
 
 export const customerRouter = Router(); // /offers
 export const staffRouter = Router(); // /staff
@@ -16,10 +17,10 @@ customerRouter.get(
   ...customerOnly,
   wrap(async (req, res) => {
     const { rows } = await query(
-      `SELECT o.* FROM offers o
+      `SELECT o.* FROM coupons o
         WHERE o.active AND o.expires_at > now()
-          AND (o.open OR EXISTS (SELECT 1 FROM offer_recipients r WHERE r.offer_id = o.id AND r.user_id = $1))
-          AND NOT EXISTS (SELECT 1 FROM offer_redemptions x WHERE x.offer_id = o.id AND x.user_id = $1)
+          AND (o.open OR EXISTS (SELECT 1 FROM customer_coupons r WHERE r.offer_id = o.id AND r.user_id = $1))
+          AND NOT EXISTS (SELECT 1 FROM coupon_redemptions x WHERE x.offer_id = o.id AND x.user_id = $1)
         ORDER BY o.expires_at ASC`,
       [req.user.id],
     );
@@ -32,7 +33,7 @@ customerRouter.post(
   ...customerOnly,
   body(z.object({ code: z.string({ error: 'Enter an offer code' }).trim().min(1, 'Enter an offer code').max(30) })),
   wrap(async (req, res) => {
-    const o = await resolveOffer(null, req.body.code, req.user.id);
+    const o = await resolveCoupon(null, req.body.code, req.user.id);
     res.json({ valid: true, offer: serializeOffer(o) });
   }),
 );
@@ -40,12 +41,12 @@ customerRouter.post(
 /* ---------------- staff: offers (US10.3) ---------------- */
 
 const LOYAL_SQL = `
-  SELECT u.id, u.full_name, u.email, u.created_at,
-         count(b.id) FILTER (WHERE b.status <> 'cancelled')::int AS trips,
-         COALESCE(sum(b.total) FILTER (WHERE b.status <> 'cancelled'), 0) AS spend,
-         max(b.pickup_at) FILTER (WHERE b.status <> 'cancelled') AS last_trip,
-         mode() WITHIN GROUP (ORDER BY s.label) FILTER (WHERE b.status <> 'cancelled') AS favourite_service,
-         mode() WITHIN GROUP (ORDER BY z.label) FILTER (WHERE b.status <> 'cancelled') AS favourite_size
+  SELECT u.id, u.full_name, u.email, u.created_at, u.marketing_consent,
+         count(b.id) FILTER (WHERE b.status NOT IN ${NOT_TRIP})::int AS trips,
+         COALESCE(sum(b.total) FILTER (WHERE b.status NOT IN ${NOT_TRIP}), 0) AS spend,
+         max(b.pickup_at) FILTER (WHERE b.status NOT IN ${NOT_TRIP}) AS last_trip,
+         mode() WITHIN GROUP (ORDER BY s.label) FILTER (WHERE b.status NOT IN ${NOT_TRIP}) AS favourite_service,
+         mode() WITHIN GROUP (ORDER BY z.label) FILTER (WHERE b.status NOT IN ${NOT_TRIP}) AS favourite_size
     FROM users u
     LEFT JOIN bookings b ON b.customer_id = u.id
     LEFT JOIN services s ON s.code = b.service_code
@@ -64,12 +65,13 @@ const serializeLoyal = (r) => ({
   favouriteSize: r.favourite_size,
   tier: tierFor(r.trips),
   memberSince: r.created_at,
+  marketingConsent: r.marketing_consent,
 });
 
 const offerCreate = z.object({
   code: z.string().trim().max(20).regex(/^[A-Za-z0-9]*$/, 'Use letters and numbers only').optional(),
   title: z.string({ error: 'Describe the offer' }).trim().min(3, 'Describe the offer').max(150),
-  discountPct: z.coerce.number({ error: 'Enter a discount between 1 and 50' }).int('Enter a whole number').min(1, 'Enter a discount between 1 and 50').max(50, 'Enter a discount between 1 and 50'),
+  amount: z.coerce.number({ error: 'Enter an amount from 1 to 50 pounds' }).min(1, 'Enter an amount from 1 to 50 pounds').max(50, 'Enter an amount from 1 to 50 pounds'),
   expiresOn: z.string({ error: 'Choose an expiry date' }).regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose an expiry date'),
   customerIds: z.array(z.string().uuid()).min(1, 'Choose at least one customer').max(500),
 });
@@ -85,9 +87,9 @@ staffRouter.get(
   ...managerOnly,
   wrap(async (_req, res) => {
     const { rows } = await query(
-      `SELECT o.*, (SELECT count(*)::int FROM offer_recipients r WHERE r.offer_id = o.id) AS recipients,
-              (SELECT count(*)::int FROM offer_redemptions x WHERE x.offer_id = o.id) AS redemptions
-         FROM offers o ORDER BY o.created_at DESC LIMIT 100`,
+      `SELECT o.*, (SELECT count(*)::int FROM customer_coupons r WHERE r.offer_id = o.id) AS recipients,
+              (SELECT count(*)::int FROM coupon_redemptions x WHERE x.offer_id = o.id) AS redemptions
+         FROM coupons o ORDER BY o.created_at DESC LIMIT 100`,
     );
     res.json({ offers: rows.map(serializeOffer) });
   }),
@@ -106,16 +108,16 @@ staffRouter.post(
       const expires = await expiryTimestamp(db, d.expiresOn);
       let offer;
       try {
-        offer = (await db.query('INSERT INTO offers (code, title, discount_pct, expires_at, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *', [code, d.title, d.discountPct, expires, req.user.id])).rows[0];
+        offer = (await db.query('INSERT INTO coupons (code, title, amount, expires_at, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *', [code, d.title, d.amount, expires, req.user.id])).rows[0];
       } catch (e) {
         if (e.code === '23505') throw new HttpError(409, 'That offer code already exists. Choose another.', 'duplicate', { code: 'That offer code already exists.' });
         throw e;
       }
       const { rows: custs } = await db.query(
-        `SELECT l.* FROM (${LOYAL_SQL}) l WHERE l.id = ANY($1::uuid[])`,
+        `SELECT l.* FROM (${LOYAL_SQL}) l WHERE l.id = ANY($1::uuid[]) AND l.marketing_consent`,
         [d.customerIds],
       );
-      if (!custs.length) throw badRequest('None of the chosen customers were found', { customerIds: 'Choose at least one customer' });
+      if (!custs.length) throw badRequest('None of the chosen customers accept offers', { customerIds: 'Choose customers who opted in to offers' });
       for (const c of custs) await sendOffer(db, offer, { id: c.id, full_name: c.full_name, email: c.email }, c.trips >= 2 ? c.favourite_service : null, req.user.id);
       return { offer, sent: custs.length };
     });
@@ -131,17 +133,17 @@ staffRouter.post(
   '/offers/recommend',
   ...managerOnly,
   body(z.object({
-    discountPct: z.coerce.number().int().min(1).max(50).default(10),
+    amount: z.coerce.number().min(1).max(50).default(5),
     validDays: z.coerce.number().int().min(1).max(90).default(30),
     minTrips: z.coerce.number().int().min(1).max(100).default(2),
   })),
   wrap(async (req, res) => {
-    const { discountPct, validDays, minTrips } = req.body;
+    const { amount, validDays, minTrips } = req.body;
     const sent = await tx(async (db) => {
       const { rows } = await db.query(
         `SELECT l.* FROM (${LOYAL_SQL}) l
-          WHERE l.trips >= $1
-            AND NOT EXISTS (SELECT 1 FROM offer_recipients r JOIN offers o ON o.id = r.offer_id
+          WHERE l.trips >= $1 AND l.marketing_consent
+            AND NOT EXISTS (SELECT 1 FROM customer_coupons r JOIN coupons o ON o.id = r.offer_id
                              WHERE r.user_id = l.id AND o.title LIKE 'Loyalty reward%' AND o.expires_at > now())
           ORDER BY l.trips DESC LIMIT 200`,
         [minTrips],
@@ -149,9 +151,9 @@ staffRouter.post(
       for (const c of rows) {
         const offer = (
           await db.query(
-            `INSERT INTO offers (code, title, discount_pct, expires_at, created_by)
+            `INSERT INTO coupons (code, title, amount, expires_at, created_by)
              VALUES ($1, $2, $3, now() + ($4 || ' days')::interval, $5) RETURNING *`,
-            [generateCode(), `Loyalty reward: ${discountPct}% off your next ${c.favourite_service || 'journey'}`, discountPct, String(validDays), req.user.id],
+            [generateCode(), `Loyalty reward: GBP ${Number(amount).toFixed(2)} off your next ${c.favourite_service || 'journey'}`, amount, String(validDays), req.user.id],
           )
         ).rows[0];
         await sendOffer(db, offer, { id: c.id, full_name: c.full_name, email: c.email }, c.favourite_service, req.user.id);
@@ -167,7 +169,7 @@ staffRouter.post(
   ...managerOnly,
   wrap(async (req, res) => {
     if (!z.string().uuid().safeParse(req.params.id).success) throw new HttpError(404, 'Offer not found', 'not_found');
-    await query('UPDATE offers SET active=false WHERE id=$1', [req.params.id]);
+    await query('UPDATE coupons SET active=false WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   }),
 );
@@ -194,7 +196,7 @@ staffRouter.get(
   wrap(async (req, res) => {
     const days = String(req.query.days);
     const base = `FROM bookings b JOIN cabs c ON c.id = b.cab_id JOIN cab_sizes z ON z.code = b.size_code JOIN services s ON s.code = b.service_code
-                  WHERE b.status <> 'cancelled' AND b.pickup_at >= now() - ($1 || ' days')::interval`;
+                  WHERE b.status NOT IN ${NOT_TRIP} AND b.pickup_at >= now() - ($1 || ' days')::interval`;
     const [cabs, models, sizes, services, channels, totals] = await Promise.all([
       query(`SELECT c.id, c.reg, c.make, c.model, z.label AS size, count(*)::int AS bookings, COALESCE(sum(b.total),0) AS revenue ${base} GROUP BY c.id, z.label ORDER BY bookings DESC, revenue DESC LIMIT 10`, [days]),
       query(`SELECT c.make, c.model, count(*)::int AS bookings, COALESCE(sum(b.total),0) AS revenue ${base} GROUP BY c.make, c.model ORDER BY bookings DESC LIMIT 8`, [days]),
