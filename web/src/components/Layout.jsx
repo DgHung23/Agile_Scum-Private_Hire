@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../icons.jsx';
-import { isStaffRole, useAuth } from '../auth.jsx';
+import { homeFor, isStaffRole, useAuth } from '../auth.jsx';
 
 export function Brand({ to = '/' }) {
   return (
@@ -26,7 +26,7 @@ function linksFor(user) {
       { to: '/contact', label: 'Help & enquiries' },
     ];
   }
-  if (isStaffRole(user)) return [{ to: '/staff', label: 'Staff area' }];
+  if (isStaffRole(user)) return [{ to: homeFor(user), label: user.role === 'driver' ? 'My jobs' : 'Staff area' }];
   return [
     { to: '/book', label: 'Book' },
     { to: '/trips', label: 'My trips' },
@@ -51,7 +51,7 @@ export function Navbar() {
   return (
     <header className="navbar">
       <div className="container navbar-inner">
-        <Brand to={user ? (isStaffRole(user) ? '/staff' : '/dashboard') : '/'} />
+        <Brand to={homeFor(user)} />
         <nav className="nav-links" aria-label="Main">
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} className="nav-link">
@@ -62,7 +62,7 @@ export function Navbar() {
         <div className="nav-actions">
           {user ? (
             <>
-              <Link to={isStaffRole(user) ? '/staff' : '/account'} className="row" style={{ gap: 8, textDecoration: 'none' }}>
+              <Link to={isStaffRole(user) ? homeFor(user) : '/account'} className="row" style={{ gap: 8, textDecoration: 'none' }}>
                 <span className="avatar" aria-hidden="true">{initials(user.fullName)}</span>
                 <span className="small strong">{user.fullName.split(' ')[0]}</span>
               </Link>
@@ -98,7 +98,7 @@ export function Navbar() {
             </NavLink>
           ))}
           {user && (
-            <NavLink to={isStaffRole(user) ? '/staff' : '/account'} className="nav-link">
+            <NavLink to={isStaffRole(user) ? homeFor(user) : '/account'} className="nav-link">
               My account
             </NavLink>
           )}
@@ -204,23 +204,28 @@ export function PublicLayout() {
   );
 }
 
+// Each item lists the roles that see it (report Appendix D, access matrix). Manager inherits Call Centre Staff.
+const DESK = ['staff', 'manager'];
 const STAFF_NAV = [
-  { to: '/staff', label: 'Dashboard', icon: 'grid', end: true },
-  { to: '/staff/call-desk', label: 'Call desk', icon: 'headset' },
-  { to: '/staff/dispatch', label: 'Dispatch', icon: 'route' },
-  { to: '/staff/enquiries', label: 'Enquiries', icon: 'message' },
-  { to: '/staff/availability', label: 'Availability', icon: 'map' },
-  { to: '/staff/reviews', label: 'Reviews', icon: 'star' },
-  { to: '/staff/offers', label: 'Offers', icon: 'gift' },
-  { to: '/staff/reports', label: 'Reports', icon: 'chart', admin: true },
-  { to: '/staff/fleet', label: 'Fleet', icon: 'car' },
-  { to: '/staff/drivers', label: 'Drivers', icon: 'wheel' },
-  { to: '/staff/outbox', label: 'Outbox', icon: 'inbox' },
+  { to: '/staff', label: 'Dashboard', icon: 'grid', end: true, roles: DESK },
+  { to: '/staff/call-desk', label: 'Call desk', icon: 'headset', roles: DESK },
+  { to: '/staff/dispatch', label: 'Dispatch', icon: 'route', roles: DESK },
+  { to: '/staff/enquiries', label: 'Enquiries', icon: 'message', roles: DESK },
+  { to: '/staff/availability', label: 'Availability', icon: 'map', roles: DESK },
+  { to: '/staff/reviews', label: 'Reviews', icon: 'star', roles: DESK },
+  { to: '/staff/fleet', label: 'Fleet', icon: 'car', roles: DESK },
+  { to: '/staff/drivers', label: 'Drivers', icon: 'wheel', roles: DESK },
+  { to: '/staff/offers', label: 'Offers', icon: 'gift', roles: ['manager'] },
+  { to: '/staff/reports', label: 'Reports', icon: 'chart', roles: ['manager'] },
+  { to: '/staff/outbox', label: 'Outbox', icon: 'inbox', roles: DESK },
+  { to: '/staff/admin/staff', label: 'Staff accounts', icon: 'user', roles: ['admin'] },
+  { to: '/staff/admin/settings', label: 'Settings', icon: 'lock', roles: ['admin'] },
+  { to: '/staff/admin/audit', label: 'Audit log', icon: 'shield', roles: ['admin'] },
 ];
 
 export function StaffLayout() {
   const { user } = useAuth();
-  const items = STAFF_NAV.filter((i) => !i.admin || user?.role === 'admin');
+  const items = STAFF_NAV.filter((i) => i.roles.includes(user?.role));
   return (
     <>
       <Navbar />

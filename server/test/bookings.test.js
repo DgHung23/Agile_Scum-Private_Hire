@@ -8,7 +8,7 @@ let staff;
 before(async () => {
   t = await startServer();
   cust = await t.login('customer@privatehire.test', 'Customer123!');
-  staff = await t.login('staff@privatehire.test', 'Staff123!', true);
+  staff = await t.login('staff@privatehire.test', 'StaffPass123!', true);
 });
 after(() => t.close());
 
@@ -117,11 +117,11 @@ test('US3.6 my bookings: upcoming list and ownership', async () => {
   const past = await t.call('GET', '/bookings?when=past', { token: cust });
   assert.ok(!past.body.bookings.find((b) => b.id === first.id));
 
-  const other = await t.call('POST', '/auth/register', {
-    body: { fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1' },
-  });
+  const other = await t.register(
+    { fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1234' },
+  );
   assert.equal(other.status, 201);
-  const otherTok = await t.login('pat@example.com', 'Passw0rd1');
+  const otherTok = await t.login('pat@example.com', 'Passw0rd1234');
   assert.equal((await t.call('GET', `/bookings/${first.id}`, { token: otherTok })).status, 404);
   assert.equal((await t.call('GET', `/bookings/${first.id}`, { token: cust })).status, 200);
   assert.equal((await t.call('GET', '/bookings/not-a-uuid', { token: cust })).status, 404);

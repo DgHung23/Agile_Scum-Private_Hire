@@ -116,9 +116,9 @@ test('US1.4 saved cards: save, list masked, pay with saved card, delete', async 
   assert.equal(paid.status, 201);
   assert.equal(paid.body.payment.cardBrandLabel, 'Mastercard');
 
-  const other = await t.call('POST', '/auth/register', { body: { fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1' } });
+  const other = await t.register({ fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1234' });
   assert.equal(other.status, 201);
-  const otherTok = await t.login('pat@example.com', 'Passw0rd1');
+  const otherTok = await t.login('pat@example.com', 'Passw0rd1234');
   assert.equal((await t.call('DELETE', `/payments/cards/${saved.body.card.id}`, { token: otherTok })).status, 404, "cannot delete someone else's card");
   assert.equal((await t.call('DELETE', `/payments/cards/${saved.body.card.id}`, { token: cust })).status, 200);
   assert.equal((await t.call('GET', '/payments/cards', { token: cust })).body.cards.length, 0);
@@ -166,6 +166,6 @@ test('US5.4 PayPal: approve then pay; cancelled, unapproved and changed-price se
 
 test('US6.1 a customer cannot open someone else\'s receipt', async () => {
   const mine = (await t.call('GET', '/bookings?when=all', { token: cust })).body.bookings[0];
-  const otherTok = await t.login('pat@example.com', 'Passw0rd1');
+  const otherTok = await t.login('pat@example.com', 'Passw0rd1234');
   assert.equal((await t.call('GET', `/bookings/${mine.id}/receipt`, { token: otherTok })).status, 404);
 });

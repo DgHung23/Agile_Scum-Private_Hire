@@ -20,7 +20,7 @@ export const v = {
   },
   password: (val) => {
     if (!val) return 'Password is required';
-    if (val.length < 8) return 'Use at least 8 characters';
+    if (val.length < 12) return 'Use at least 12 characters';
     if (!/[A-Za-z]/.test(val) || !/\d/.test(val)) return 'Include at least one letter and one number';
     return '';
   },

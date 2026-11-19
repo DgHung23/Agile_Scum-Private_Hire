@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query, tx } from '../db.js';
-import { adminOnly, customerOnly, staffOnly } from '../middleware/auth.js';
+import { customerOnly, managerOnly } from '../middleware/auth.js';
 import { body, queryOf, wrap } from '../middleware/validate.js';
 import { HttpError, badRequest } from '../errors.js';
 import { generateCode, normCode, resolveOffer, sendOffer, serializeOffer, tierFor } from '../services/offers.js';
@@ -82,7 +82,7 @@ const expiryTimestamp = async (db, date) => {
 
 staffRouter.get(
   '/offers',
-  ...staffOnly,
+  ...managerOnly,
   wrap(async (_req, res) => {
     const { rows } = await query(
       `SELECT o.*, (SELECT count(*)::int FROM offer_recipients r WHERE r.offer_id = o.id) AS recipients,
@@ -96,7 +96,7 @@ staffRouter.get(
 /** Create an offer code and email it to the chosen customers. */
 staffRouter.post(
   '/offers',
-  ...staffOnly,
+  ...managerOnly,
   body(offerCreate),
   wrap(async (req, res) => {
     const d = req.body;
@@ -129,7 +129,7 @@ staffRouter.post(
  */
 staffRouter.post(
   '/offers/recommend',
-  ...staffOnly,
+  ...managerOnly,
   body(z.object({
     discountPct: z.coerce.number().int().min(1).max(50).default(10),
     validDays: z.coerce.number().int().min(1).max(90).default(30),
@@ -164,7 +164,7 @@ staffRouter.post(
 
 staffRouter.post(
   '/offers/:id/deactivate',
-  ...staffOnly,
+  ...managerOnly,
   wrap(async (req, res) => {
     if (!z.string().uuid().safeParse(req.params.id).success) throw new HttpError(404, 'Offer not found', 'not_found');
     await query('UPDATE offers SET active=false WHERE id=$1', [req.params.id]);
@@ -176,7 +176,7 @@ staffRouter.post(
 
 staffRouter.get(
   '/customers-loyalty',
-  ...staffOnly,
+  ...managerOnly,
   queryOf(z.object({ minTrips: z.coerce.number().int().min(0).default(0), limit: z.coerce.number().int().min(1).max(200).default(30) })),
   wrap(async (req, res) => {
     const { rows } = await query(`SELECT l.* FROM (${LOYAL_SQL}) l WHERE l.trips >= $1 ORDER BY l.trips DESC, l.spend DESC LIMIT $2`, [req.query.minTrips, req.query.limit]);
@@ -189,7 +189,7 @@ const periodQuery = z.object({ days: z.coerce.number().int().min(1).max(3650).de
 /** US10.1 popular cars and cab sizes */
 staffRouter.get(
   '/reports/popular',
-  ...adminOnly,
+  ...managerOnly,
   queryOf(periodQuery),
   wrap(async (req, res) => {
     const days = String(req.query.days);

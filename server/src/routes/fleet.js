@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db.js';
-import { staffOnly } from '../middleware/auth.js';
+import { requireRole, staffOnly } from '../middleware/auth.js';
+
+const manager = requireRole('manager');
 import { body, queryOf, wrap } from '../middleware/validate.js';
 import { badRequest, HttpError, notFound } from '../errors.js';
 import { phoneSchema } from '../schemas.js';
@@ -91,6 +93,7 @@ const dupReg = (e) => {
 
 router.post(
   '/cabs',
+  manager,
   body(cabSchema),
   wrap(async (req, res) => {
     const d = req.body;
@@ -110,6 +113,7 @@ router.post(
 
 router.patch(
   '/cabs/:id',
+  manager,
   body(cabSchema),
   wrap(async (req, res) => {
     checkId(req.params.id);
@@ -198,6 +202,7 @@ router.get(
 
 router.post(
   '/drivers',
+  manager,
   body(driverSchema),
   wrap(async (req, res) => {
     const d = req.body;
@@ -216,6 +221,7 @@ router.post(
 
 router.patch(
   '/drivers/:id',
+  manager,
   body(driverSchema),
   wrap(async (req, res) => {
     checkId(req.params.id);

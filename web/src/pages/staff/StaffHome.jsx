@@ -21,7 +21,7 @@ export default function StaffHome() {
   const { data, loading, error } = useLoad(() => api.get('/staff/dashboard'));
   return (
     <div className="stack-lg">
-      <PageHeader title={`Welcome, ${user.fullName.split(' ')[0]}`} sub={user.role === 'admin' ? 'Manager view' : 'Call-centre view'}
+      <PageHeader title={`Welcome, ${user.fullName.split(' ')[0]}`} sub={user.role === 'manager' ? 'Manager view' : 'Call Centre view'}
         actions={<><Link to="/staff/call-desk" className="btn"><Icon name="headset" size={18} /> Call desk</Link><Link to="/staff/dispatch" className="btn btn-subtle">Dispatch</Link></>} />
       {loading && <Loading />}
       {error && <Alert tone="error">{error.message}</Alert>}

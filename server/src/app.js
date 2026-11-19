@@ -9,6 +9,7 @@ import { query } from './db.js';
 import { wrap } from './middleware/validate.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { registerRoutes } from './routes/index.js';
+import { csrfGuard } from './middleware/auth.js';
 
 export function createApp() {
   const app = express();
@@ -28,7 +29,7 @@ export function createApp() {
       },
     }),
   );
-  app.use(cors({ origin: config.corsOrigin.split(','), credentials: false }));
+  app.use(cors({ origin: config.corsOrigin.split(','), credentials: true }));
   app.use(express.json({ limit: '100kb' }));
 
   app.get(
@@ -39,6 +40,7 @@ export function createApp() {
     }),
   );
 
+  app.use('/api', csrfGuard);
   const api = express.Router();
   registerRoutes(api);
   app.use('/api/v1', api);

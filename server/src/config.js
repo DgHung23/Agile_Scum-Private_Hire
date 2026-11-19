@@ -9,8 +9,6 @@ export const config = {
   port: Number(env.PORT || 4000),
   databaseUrl:
     env.DATABASE_URL || 'postgres://privatehire:privatehire_dev@localhost:5433/privatehire',
-  jwtSecret: env.JWT_SECRET || 'dev-only-secret-change-me',
-  jwtExpiresIn: env.JWT_EXPIRES_IN || '7d',
   corsOrigin: env.CORS_ORIGIN || 'http://localhost:5173',
   publicUrl: env.PUBLIC_URL || 'http://localhost:5173',
   // Set FORCE_HTTPS=true only when the app is served behind HTTPS (enables HSTS and upgrade-insecure-requests).
@@ -18,6 +16,4 @@ export const config = {
   forceHttps: env.FORCE_HTTPS === 'true',
 };
 
-if (isProd && config.jwtSecret === 'dev-only-secret-change-me') {
-  console.warn('[config] JWT_SECRET is not set - set a strong secret in production.');
-}
+// Sessions are server-side (table `sessions`), so no signing secret is needed.

@@ -1,3 +1,4 @@
+import { useAuth } from '../../auth.jsx';
 import { useState } from 'react';
 import { api, qs } from '../../api.js';
 import { Icon } from '../../icons.jsx';
@@ -54,6 +55,8 @@ function EntityModal({ title, fields, initial, onSave, onClose }) {
 }
 
 export function StaffFleet() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'manager'; // ID-65, ID-66: only the Manager edits the fleet
   const toast = useToast();
   const [filters, setFilters] = useState({ q: '', size: '', active: '' });
   const sizes = useLoad(() => api.publicGet('/catalog/cab-sizes'));
@@ -90,7 +93,7 @@ export function StaffFleet() {
   return (
     <div className="stack-lg">
       <PageHeader title="Fleet" sub="Add, edit and deactivate minicabs. Only active cabs can be booked."
-        actions={<button className="btn" onClick={() => setModal({})}><Icon name="plus" size={18} /> Add cab</button>} />
+        actions={canEdit && <button className="btn" onClick={() => setModal({})}><Icon name="plus" size={18} /> Add cab</button>} />
       <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <TextField label="Search" placeholder="Registration, make or model" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
         <SelectField label="Size" value={filters.size} onChange={(e) => setFilters({ ...filters, size: e.target.value })}>
@@ -123,8 +126,10 @@ export function StaffFleet() {
                   <td><span className={`badge ${c.active ? 'green' : ''}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-                      <button className="btn btn-subtle btn-sm" onClick={() => setModal({ cab: c })}>Edit</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggle(c)}>{c.active ? 'Deactivate' : 'Reactivate'}</button>
+                      {canEdit && <>
+                        <button className="btn btn-subtle btn-sm" onClick={() => setModal({ cab: c })}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggle(c)}>{c.active ? 'Deactivate' : 'Reactivate'}</button>
+                      </>}
                     </div>
                   </td>
                 </tr>
@@ -148,6 +153,8 @@ export function StaffFleet() {
 }
 
 export function StaffDrivers() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'manager'; // ID-65, ID-66: only the Manager edits the fleet
   const toast = useToast();
   const [filters, setFilters] = useState({ q: '', active: '' });
   const { data, loading, error, reload } = useLoad(() => api.get('/staff/drivers' + qs(filters)), [filters.q, filters.active]);
@@ -179,7 +186,7 @@ export function StaffDrivers() {
   return (
     <div className="stack-lg">
       <PageHeader title="Drivers" sub="Drivers who can be assigned to bookings."
-        actions={<button className="btn" onClick={() => setModal({})}><Icon name="plus" size={18} /> Add driver</button>} />
+        actions={canEdit && <button className="btn" onClick={() => setModal({})}><Icon name="plus" size={18} /> Add driver</button>} />
       <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <TextField label="Search" placeholder="Name or licence number" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
         <SelectField label="Status" value={filters.active} onChange={(e) => setFilters({ ...filters, active: e.target.value })}>
@@ -205,8 +212,10 @@ export function StaffDrivers() {
                   <td><span className={`badge ${d.active ? 'green' : ''}`}>{d.active ? 'Active' : 'Inactive'}</span></td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-                      <button className="btn btn-subtle btn-sm" onClick={() => setModal({ driver: d })}>Edit</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggle(d)}>{d.active ? 'Deactivate' : 'Reactivate'}</button>
+                      {canEdit && <>
+                        <button className="btn btn-subtle btn-sm" onClick={() => setModal({ driver: d })}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggle(d)}>{d.active ? 'Deactivate' : 'Reactivate'}</button>
+                      </>}
                     </div>
                   </td>
                 </tr>

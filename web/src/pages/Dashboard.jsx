@@ -4,6 +4,7 @@ import { useAuth } from '../auth.jsx';
 import { Icon } from '../icons.jsx';
 import { BookingCard } from '../components/BookingBits.jsx';
 import { Empty, Loading, PageHeader, useLoad } from '../ui.jsx';
+import { VerifyBanner } from './Account.jsx';
 import { fmtDate } from '../format.js';
 
 /** Customer home. Offers are added in Sprint 3. */
@@ -16,6 +17,7 @@ export default function Dashboard() {
     <div className="container page">
       <div className="stack-lg">
         <PageHeader title={`Hello, ${user.fullName.split(' ')[0]}`} sub="Where are we taking you today?" />
+        <VerifyBanner />
         <div className="grid grid-3">
           <Link to="/book" className="card card-dark clickable stack-sm">
             <Icon name="car" size={28} />

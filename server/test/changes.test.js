@@ -8,8 +8,8 @@ let other;
 before(async () => {
   t = await startServer();
   cust = await t.login('customer@privatehire.test', 'Customer123!');
-  await t.call('POST', '/auth/register', { body: { fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1' } });
-  other = await t.login('pat@example.com', 'Passw0rd1');
+  await t.register({ fullName: 'Pat Other', email: 'pat@example.com', phone: '07700 900321', addressLine: '2 Road', city: 'London', postcode: 'N1 9GU', password: 'Passw0rd1234' });
+  other = await t.login('pat@example.com', 'Passw0rd1234');
 });
 after(() => t.close());
 

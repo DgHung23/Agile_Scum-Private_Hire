@@ -3,19 +3,21 @@ import { Alert, SelectField, TextField } from '../ui.jsx';
 import { passwordStrength, v, validate } from '../validators.js';
 import { Icon } from '../icons.jsx';
 
-const BLANK = { fullName: '', email: '', phone: '', addressLine: '', city: '', postcode: '', notifyPref: 'email', password: '', signupChannel: 'phone' };
+const BLANK = { fullName: '', email: '', phone: '', addressLine: '', city: '', postcode: '', notifyPref: 'email', password: '', signupChannel: 'phone', marketingConsent: false, secretWord: '', currentPassword: '' };
 
 /**
  * One form for registering, editing a profile and (later) staff creating an account for a caller.
  * US1.1 / US1.5 / US9.3 share the same validation, client-side here and server-side in the API.
  */
-export default function ProfileForm({ initial, withPassword = false, withChannel = false, submitLabel, onSubmit, onCancel }) {
+export default function ProfileForm({ initial, withPassword = false, withChannel = false, withConsent = true, withSecretWord = false, submitLabel, onSubmit, onCancel }) {
   const [values, setValues] = useState({ ...BLANK, ...initial });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
   const [showPw, setShowPw] = useState(false);
+  // ID-15: changing the email address of an existing account needs the current password.
+  const emailChanged = !!initial?.email && values.email.trim().toLowerCase() !== String(initial.email).toLowerCase();
 
   const rules = {
     fullName: v.required('Full name'),
@@ -25,6 +27,8 @@ export default function ProfileForm({ initial, withPassword = false, withChannel
     city: v.required('City'),
     postcode: v.postcode,
     ...(withPassword ? { password: v.password } : {}),
+    ...(emailChanged ? { currentPassword: (x) => (x ? '' : 'Enter your current password to change your email') } : {}),
+    ...(withSecretWord ? { secretWord: (x) => (!x || x.trim().length >= 4 ? '' : 'Use at least 4 characters') } : {}),
   };
 
   const set = (k) => (e) => {
@@ -50,7 +54,10 @@ export default function ProfileForm({ initial, withPassword = false, withChannel
     }
     setBusy(true);
     try {
-      await onSubmit(values);
+      const out = { ...values };
+      if (!emailChanged) delete out.currentPassword;
+      if (!withSecretWord || !out.secretWord) delete out.secretWord;
+      await onSubmit(out);
     } catch (err) {
       if (err.fields && Object.keys(err.fields).length) setErrors((s) => ({ ...s, ...err.fields }));
       setFormError(err.message);
@@ -76,6 +83,16 @@ export default function ProfileForm({ initial, withPassword = false, withChannel
           <option value="text">Text message</option>
           <option value="both">Email and text message</option>
         </SelectField>
+        {emailChanged && (
+          <TextField className="span-2" label="Current password" type="password" autoComplete="current-password" value={values.currentPassword}
+            onChange={set('currentPassword')} onBlur={blur('currentPassword')} error={errors.currentPassword}
+            hint="Needed to change your email. We will tell your old address and ask you to verify the new one." />
+        )}
+        {withSecretWord && (
+          <TextField className="span-2" label="Secret word for phone bookings (optional)" autoComplete="off" value={values.secretWord}
+            onChange={set('secretWord')} onBlur={blur('secretWord')} error={errors.secretWord}
+            hint="Our call centre asks for it to confirm it is you. It never appears on receipts." />
+        )}
         {withChannel && (
           <SelectField className="span-2" label="How is this customer contacting us?" value={values.signupChannel} onChange={set('signupChannel')}>
             <option value="phone">By phone</option>
@@ -111,13 +128,19 @@ export default function ProfileForm({ initial, withPassword = false, withChannel
               {errors.password ? (
                 <span className="field-error" role="alert">{errors.password}</span>
               ) : (
-                <span className="field-hint">At least 8 characters with a letter and a number</span>
+                <span className="field-hint">At least 12 characters with a letter and a number</span>
               )}
             </div>
             <div className="pwd-meter" aria-hidden="true">
               <div style={{ width: `${(strength / 4) * 100}%` }} />
             </div>
           </div>
+        )}
+        {withConsent && (
+          <label className="check span-2">
+            <input type="checkbox" checked={!!values.marketingConsent} onChange={(e) => setValues((s) => ({ ...s, marketingConsent: e.target.checked }))} />
+            <span>Send me special offers and coupons by email (optional - you can change this any time).</span>
+          </label>
         )}
       </div>
       <div className="row">
