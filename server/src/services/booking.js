@@ -209,7 +209,7 @@ export function bookingConfirmationEmail(row, customerName, paidWith = null) {
   const lines = [
     `Hello ${customerName},`,
     '',
-    'Your PrivateHire Cars booking is confirmed.',
+    'Your Private Hire Cars booking is confirmed.',
     '',
     `Booking reference: ${row.ref}`,
     `Service: ${row.service_label}`,
@@ -232,7 +232,7 @@ export function bookingConfirmationEmail(row, customerName, paidWith = null) {
   lines.push(
     'You can cancel or change this booking free of charge up to 24 hours before pickup from My trips.',
     '',
-    'The PrivateHire Cars team',
+    'The Private Hire Cars team',
   );
   return { subject: `Booking confirmed - ${row.ref}`, body: lines.join('\n') };
 }

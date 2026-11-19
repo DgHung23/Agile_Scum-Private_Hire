@@ -1,4 +1,6 @@
-# PrivateHire Cars - online booking system
+# Private Hire Cars - online booking system
+
+![Private Hire - your ride, your terms](docs/brand/banner.png)
 
 A responsive web application (desktop and phone browsers) with a REST API and a PostgreSQL database, built for the
 COMP1807 Agile Scrum coursework. The API (`/api/v1`, JSON, bearer tokens) is designed so a native mobile app can reuse it
@@ -62,8 +64,9 @@ docs/     SPRINTS.md (sprint plan + delivery log), TRACEABILITY.md (story -> cod
 ## Tech
 
 Node 22, Express 5, PostgreSQL 16 (`pg`), zod validation, bcrypt + JWT, React 18 + React Router 7, Vite. Design system:
-layout and pill-shaped controls from the Uber reference, colour palette from the Airbnb reference (Rausch `#ff385c` for
-primary actions, ink `#222222` text, soft grey surfaces).
+layout and pill-shaped controls from the Uber reference, colours from the Airbnb reference and the Private Hire brand kit
+(Private Pink `#FF385C` for primary actions, Rose `#D70F3D` hover, Blush `#FFD1DA`, Ink `#17151A`), Plus Jakarta Sans with
+ExtraBold headlines. Logo, favicons, PWA icons and the link-preview image come from the brand kit (`web/public`).
 
 ## How it was built
 

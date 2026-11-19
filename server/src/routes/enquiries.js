@@ -75,7 +75,7 @@ router.post(
           kind: 'enquiry_received',
           bookingId,
           subject: `We have your enquiry - ${ref}`,
-          body: `Hello ${d.name},\n\nThank you for contacting PrivateHire Cars. We have received your enquiry "${d.subject}" and a member of the team will reply by email as soon as possible.\n\nReference: ${ref}\n\nThe PrivateHire Cars team`,
+          body: `Hello ${d.name},\n\nThank you for contacting Private Hire Cars. We have received your enquiry "${d.subject}" and a member of the team will reply by email as soon as possible.\n\nReference: ${ref}\n\nThe Private Hire Cars team`,
         },
         db,
       );
@@ -137,7 +137,7 @@ staffRouter.post(
           bookingId: e.booking_id,
           sentBy: req.user.id,
           subject: `Re: ${e.subject} (${ref})`,
-          body: `Hello ${e.name},\n\n${req.body.message}\n\nKind regards,\n${req.user.full_name}\nPrivateHire Cars\n\n--- Your enquiry ---\n${e.message}`,
+          body: `Hello ${e.name},\n\n${req.body.message}\n\nKind regards,\n${req.user.full_name}\nPrivate Hire Cars\n\n--- Your enquiry ---\n${e.message}`,
         },
         db,
       );
@@ -168,7 +168,7 @@ staffRouter.post(
       kind: 'staff_email',
       sentBy: req.user.id,
       subject: req.body.subject,
-      body: `Hello ${c.full_name},\n\n${req.body.message}\n\nKind regards,\n${req.user.full_name}\nPrivateHire Cars`,
+      body: `Hello ${c.full_name},\n\n${req.body.message}\n\nKind regards,\n${req.user.full_name}\nPrivate Hire Cars`,
     });
     res.status(201).json({ id: n.id });
   }),

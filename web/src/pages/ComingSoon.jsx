@@ -6,7 +6,7 @@ export default function ComingSoon({ title = 'Coming soon' }) {
   return (
     <div className="container page">
       <Empty icon="clock" title={title} action={<Link to="/" className="btn">Back to home</Link>}>
-        This part of PrivateHire is being built in an upcoming sprint.
+        This part of Private Hire is being built in an upcoming sprint.
       </Empty>
     </div>
   );

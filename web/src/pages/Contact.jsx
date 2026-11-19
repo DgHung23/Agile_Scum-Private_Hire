@@ -111,7 +111,7 @@ export default function Contact() {
                 <p className="small muted" style={{ whiteSpace: 'pre-wrap' }}>{e.message}</p>
                 {e.replies.map((r) => (
                   <div key={r.id} className="msg">
-                    <div className="meta">{r.staffName}, PrivateHire - {fmtDate(r.createdAt)}</div>
+                    <div className="meta">{r.staffName}, Private Hire - {fmtDate(r.createdAt)}</div>
                     <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{r.body}</p>
                   </div>
                 ))}

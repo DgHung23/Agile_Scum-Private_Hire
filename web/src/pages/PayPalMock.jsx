@@ -55,7 +55,7 @@ export default function PayPalMock() {
           <span className="badge amber" style={{ alignSelf: 'center' }}>Simulated for this prototype - no real money moves</span>
         </div>
         <div className="center">
-          <p className="muted small">Pay PrivateHire Cars</p>
+          <p className="muted small">Pay Private Hire Cars</p>
           <p style={{ fontSize: 32, fontWeight: 700 }}>{money(data.amount)}</p>
         </div>
         <form className="stack" onSubmit={approve} noValidate>
@@ -64,7 +64,7 @@ export default function PayPalMock() {
           <TextField label="Password" type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} error={errs.password} hint="Use any password" />
           <button className="btn btn-lg btn-block" disabled={busy}>Log in and approve payment</button>
         </form>
-        <button className="btn btn-ghost btn-block" onClick={cancel} disabled={busy}>Cancel and return to PrivateHire</button>
+        <button className="btn btn-ghost btn-block" onClick={cancel} disabled={busy}>Cancel and return to Private Hire</button>
       </div>
     </div>
   );

@@ -15,10 +15,7 @@ export function ReceiptView({ r, backTo }) {
       <article className="receipt stack-lg" aria-label="Receipt">
         <div className="row-between" style={{ alignItems: 'flex-start' }}>
           <div>
-            <div className="brand" style={{ marginBottom: 6 }}>
-              <span className="brand-mark"><Icon name="car" size={18} /></span>
-              {r.company.name}
-            </div>
+            <img src="/brand/logo.svg" alt={r.company.name} className="brand-logo" width="158" height="28" style={{ marginBottom: 10 }} />
             <div className="small muted">{r.company.address}<br />{r.company.phone} &middot; {r.company.email}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -67,7 +64,7 @@ export function ReceiptView({ r, backTo }) {
           ))}
           <Kv cls="total" k="Net paid" v={money(r.netPaid)} />
         </div>
-        <p className="tiny">Thank you for travelling with PrivateHire Cars. Keep this receipt for your records.</p>
+        <p className="tiny">Thank you for travelling with Private Hire Cars. Keep this receipt for your records.</p>
       </article>
     </div>
   );

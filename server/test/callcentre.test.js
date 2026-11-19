@@ -95,7 +95,7 @@ test('US9.3 create an account for a new caller: validated, emailed, immediately 
   assert.equal(ok.body.customer.signupChannel, 'phone');
   const mail = await t.pool.query("SELECT * FROM notifications WHERE to_addr='nina@example.com'");
   assert.equal(mail.rowCount, 1);
-  assert.match(mail.rows[0].body, /created a PrivateHire Cars account for you/);
+  assert.match(mail.rows[0].body, /created a Private Hire Cars account for you/);
   assert.equal(mail.rows[0].sent_by !== null, true);
   assert.equal((await t.call('GET', `/staff/customers/${ok.body.customer.id}`, { token: staff })).status, 200, 'creator can open it straight away');
   const dup = await t.call('POST', '/staff/customers', { token: staff, body: { fullName: 'Nina Again', email: 'NINA@example.com', phone: '07700 900778', addressLine: '3 New Road', city: 'London', postcode: 'E2 8AA' } });

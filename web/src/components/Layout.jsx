@@ -5,11 +5,8 @@ import { isStaffRole, useAuth } from '../auth.jsx';
 
 export function Brand({ to = '/' }) {
   return (
-    <Link to={to} className="brand" aria-label="PrivateHire Cars home">
-      <span className="brand-mark">
-        <Icon name="car" size={18} />
-      </span>
-      PrivateHire
+    <Link to={to} className="brand" aria-label="Private Hire home">
+      <img src="/brand/logo.svg" alt="Private Hire" className="brand-logo" width="158" height="28" />
     </Link>
   );
 }
@@ -132,12 +129,7 @@ export function Footer() {
       <div className="container">
         <div className="footer-cols">
           <div>
-            <div className="brand" style={{ color: '#fff', marginBottom: 12 }}>
-              <span className="brand-mark" style={{ background: '#fff', color: '#ff385c' }}>
-                <Icon name="car" size={18} />
-              </span>
-              PrivateHire
-            </div>
+            <img src="/brand/logo-on-dark.svg" alt="Private Hire" className="brand-logo" width="158" height="28" style={{ marginBottom: 16 }} />
             <p className="small" style={{ color: '#c9c9c9', maxWidth: 320 }}>
               London private hire since 2012. 150+ vehicles, one fast, friendly and reliable service.
             </p>
@@ -167,7 +159,7 @@ export function Footer() {
           </div>
         </div>
         <p className="tiny" style={{ marginTop: 28, color: '#8a8a8a' }}>
-          &copy; {new Date().getFullYear()} PrivateHire Cars. Coursework prototype for COMP1807 - payments, SMS, email and
+          &copy; {new Date().getFullYear()} Private Hire Cars. Coursework prototype for COMP1807 - payments, SMS, email and
           GPS are simulated.
         </p>
       </div>
