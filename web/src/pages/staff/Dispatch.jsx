@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { Icon } from '../../icons.jsx';
@@ -97,7 +98,8 @@ function Card({ b, actions }) {
       <div className="tiny mono">{b.ref} &middot; {b.customer.name} &middot; {b.customer.phone}</div>
       {b.vehicle && <div className="small"><Icon name="car" size={14} /> <span className="mono strong">{b.vehicle.reg}</span> {b.vehicle.colour} {b.vehicle.make}{b.driver ? ` · ${b.driver.name} (${b.driver.phone})` : ''}</div>}
       {b.status === 'on_route' && <div className="small strong"><Icon name="clock" size={14} /> ETA {b.etaMinutes} min</div>}
-      <div className="row">{actions}</div>
+      {(b.accessibility?.length > 0 || b.childSeatAges?.length > 0) && <div className="tiny">Needs: {[...(b.accessibility || []).map((a) => a.replace(/_/g, ' ')), ...(b.childSeatAges?.length ? [`${b.childSeatAges.length} child seat(s)`] : [])].join(', ')}</div>}
+      <div className="row">{actions}<Link to={`/staff/bookings/${b.id}`} className="btn btn-ghost btn-sm">Manage</Link></div>
     </article>
   );
 }
@@ -146,17 +148,25 @@ export default function Dispatch() {
             ))}
           </section>
           <section className="stack">
-            <h3>On route ({data.onRoute.length})</h3>
+            <h3>On the road ({data.onRoute.length})</h3>
             {data.onRoute.length === 0 && <Empty icon="map" title="No cars on the road" />}
             {data.onRoute.map((b) => (
               <Card key={b.id} b={b} actions={
                 <>
-                  <button className="btn btn-sm" onClick={() => act(() => api.post(`/staff/bookings/${b.id}/status`, { status: 'completed' }), 'Journey completed - review invitation emailed')}>Complete journey</button>
-                  <button className="btn btn-subtle btn-sm" onClick={() => setRoute(b)}>Update ETA</button>
+                  {b.status === 'on_route' && <button className="btn btn-sm" onClick={() => act(() => api.post(`/staff/bookings/${b.id}/status`, { status: 'arrived' }), 'Arrived - customer told')}>Arrived</button>}
+                  {b.status === 'arrived' && <button className="btn btn-sm" onClick={() => act(() => api.post(`/staff/bookings/${b.id}/status`, { status: 'in_progress' }), 'Picked up')}>Picked up</button>}
+                  {b.status === 'in_progress' && b.paymentStatus !== 'due_cash' && <button className="btn btn-sm" onClick={() => act(() => api.post(`/staff/bookings/${b.id}/status`, { status: 'completed' }), 'Journey completed - review invitation emailed')}>Complete journey</button>}
+                  {b.status === 'on_route' && <button className="btn btn-subtle btn-sm" onClick={() => setRoute(b)}>Update ETA</button>}
                 </>
               } />
             ))}
           </section>
+          {data.interrupted?.length > 0 && (
+            <section className="stack">
+              <h3>Interrupted ({data.interrupted.length})</h3>
+              {data.interrupted.map((b) => <Card key={b.id} b={b} actions={<Link to={`/staff/bookings/${b.id}`} className="btn btn-sm">Send replacement</Link>} />)}
+            </section>
+          )}
         </div>
       )}
       {assign && <AssignModal b={assign} onClose={() => setAssign(null)} onDone={() => { setAssign(null); toast('Driver assigned', 'success'); reload(); }} />}

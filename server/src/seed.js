@@ -9,6 +9,7 @@ export const DEMO = {
   admin: { email: 'admin@privatehire.test', password: 'AdminPass123!', name: 'George Smith', role: 'admin', phone: '020 7000 0001' },
   manager: { email: 'manager@privatehire.test', password: 'ManagerPass123!', name: 'Jordan Blake', role: 'manager', phone: '020 7000 0003' },
   staff: { email: 'staff@privatehire.test', password: 'StaffPass123!', name: 'Sam Carter', role: 'staff', phone: '020 7000 0002', refundLimit: 50 },
+  driver: { email: 'driver@privatehire.test', password: 'DriverPass123!', name: 'Mohammed Khan', role: 'driver', phone: '07700 910000' },
   customer: { email: 'customer@privatehire.test', password: 'Customer123!', name: 'Alex Morgan', role: 'customer', phone: '07700 900123', secretWord: 'bluebird', marketing: true },
 };
 
@@ -131,6 +132,26 @@ export async function seedFleet() {
       [DRIVER_NAMES[i], `07700 9${String(10000 + i * 37).slice(-5)}`, `PHD-${10001 + i}`],
     );
   }
+  // ID-65, ID-66: documents with expiry dates. One driver's licence is about to expire (shown as a warning).
+  await query(
+    `INSERT INTO documents (owner_type, owner_id, doc_type, reference, expires_on)
+       SELECT 'cab', c.id, t.doc, upper(substr(md5(c.id::text || t.doc), 1, 8)), (now() + interval '9 months')::date
+         FROM cabs c CROSS JOIN (VALUES ('phv_vehicle_licence'), ('insurance'), ('mot')) AS t(doc)
+     ON CONFLICT DO NOTHING`,
+  );
+  await query(
+    `INSERT INTO documents (owner_type, owner_id, doc_type, reference, expires_on)
+       SELECT 'driver', d.id, t.doc, upper(substr(md5(d.id::text || t.doc), 1, 8)),
+              CASE WHEN d.licence_no = 'PHD-10020' AND t.doc = 'phv_driver_licence' THEN (now() + interval '20 days')::date
+                   ELSE (now() + interval '14 months')::date END
+         FROM drivers d CROSS JOIN (VALUES ('phv_driver_licence'), ('driving_licence')) AS t(doc)
+     ON CONFLICT DO NOTHING`,
+  );
+  // N34: the demo driver account signs in to the Driver view as the first driver.
+  await query(
+    `UPDATE drivers SET user_id = (SELECT id FROM users WHERE email = 'driver@privatehire.test')
+      WHERE licence_no = 'PHD-10001' AND user_id IS NULL`,
+  );
 }
 
 export async function seed() {

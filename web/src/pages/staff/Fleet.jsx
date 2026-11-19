@@ -57,6 +57,7 @@ function EntityModal({ title, fields, initial, onSave, onClose }) {
 export function StaffFleet() {
   const { user } = useAuth();
   const canEdit = user?.role === 'manager'; // ID-65, ID-66: only the Manager edits the fleet
+  const [docs, setDocs] = useState(null);
   const toast = useToast();
   const [filters, setFilters] = useState({ q: '', size: '', active: '' });
   const sizes = useLoad(() => api.publicGet('/catalog/cab-sizes'));
@@ -90,6 +91,15 @@ export function StaffFleet() {
     }
   };
 
+  // ID-65, N30: a car marked Unavailable (for example after a breakdown) is cleared by the Manager.
+  const clearCab = async (c) => {
+    try {
+      await api.patch(`/staff/cabs/${c.id}/status`, { status: 'available' });
+      reload();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
   return (
     <div className="stack-lg">
       <PageHeader title="Fleet" sub="Add, edit and deactivate minicabs. Only active cabs can be booked."
@@ -113,7 +123,7 @@ export function StaffFleet() {
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>Registration</th><th>Vehicle</th><th>Colour</th><th>Size</th><th>Upcoming</th><th>Status</th><th /></tr>
+              <tr><th>Registration</th><th>Vehicle</th><th>Colour</th><th>Size</th><th>Upcoming</th><th>Documents</th><th>Status</th><th /></tr>
             </thead>
             <tbody>
               {data.cabs.map((c) => (
@@ -121,9 +131,18 @@ export function StaffFleet() {
                   <td className="strong mono">{c.reg}</td>
                   <td>{c.make} {c.model}</td>
                   <td>{c.colour}</td>
-                  <td>{c.sizeLabel}</td>
+                  <td>{c.sizeLabel}{c.wheelchairAccessible && <div className="tiny">Wheelchair accessible</div>}</td>
                   <td>{c.upcomingBookings}</td>
-                  <td><span className={`badge ${c.active ? 'green' : ''}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
+                  <td><DocsCell docs={c.documents} onOpen={() => setDocs({ type: 'cabs', id: c.id, name: c.reg, documents: c.documents })} /></td>
+                  <td>
+                    {!c.active ? <span className="badge">Deactivated</span> : c.status === 'unavailable' ? (
+                      <span className="stack-sm">
+                        <span className="badge red" title={c.statusReason || ''}>Unavailable</span>
+                        {c.statusReason && <span className="tiny">{c.statusReason}</span>}
+                        {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => clearCab(c)}>Clear</button>}
+                      </span>
+                    ) : <span className="badge green">Available</span>}
+                  </td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                       {canEdit && <>
@@ -139,6 +158,7 @@ export function StaffFleet() {
         </div>
       )}
       <p className="tiny">{data ? `${data.cabs.length} cab${data.cabs.length === 1 ? '' : 's'} shown` : ''}</p>
+      {docs && <DocsModal {...docs} canEdit={canEdit} onClose={() => setDocs(null)} onSaved={() => { setDocs(null); reload(); }} />}
       {modal && (
         <EntityModal
           title={modal.cab ? `Edit ${modal.cab.reg}` : 'Add a cab'}
@@ -155,6 +175,7 @@ export function StaffFleet() {
 export function StaffDrivers() {
   const { user } = useAuth();
   const canEdit = user?.role === 'manager'; // ID-65, ID-66: only the Manager edits the fleet
+  const [docs, setDocs] = useState(null);
   const toast = useToast();
   const [filters, setFilters] = useState({ q: '', active: '' });
   const { data, loading, error, reload } = useLoad(() => api.get('/staff/drivers' + qs(filters)), [filters.q, filters.active]);
@@ -201,7 +222,7 @@ export function StaffDrivers() {
       {data && data.drivers.length > 0 && (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Name</th><th>Telephone</th><th>Licence</th><th>Upcoming jobs</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>Name</th><th>Telephone</th><th>Licence</th><th>Upcoming jobs</th><th>Documents</th><th>Status</th><th /></tr></thead>
             <tbody>
               {data.drivers.map((d) => (
                 <tr key={d.id}>
@@ -209,7 +230,8 @@ export function StaffDrivers() {
                   <td>{d.phone}</td>
                   <td className="mono">{d.licenceNo}</td>
                   <td>{d.upcomingBookings}</td>
-                  <td><span className={`badge ${d.active ? 'green' : ''}`}>{d.active ? 'Active' : 'Inactive'}</span></td>
+                  <td><DocsCell docs={d.documents} onOpen={() => setDocs({ type: 'drivers', id: d.id, name: d.fullName, documents: d.documents })} /></td>
+                  <td><span className={`badge ${d.active ? 'green' : ''}`}>{d.active ? 'Active' : 'Inactive'}</span>{d.hasLogin && <div className="tiny">Uses the Driver view</div>}</td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                       {canEdit && <>
@@ -224,6 +246,7 @@ export function StaffDrivers() {
           </table>
         </div>
       )}
+      {docs && <DocsModal {...docs} canEdit={canEdit} onClose={() => setDocs(null)} onSaved={() => { setDocs(null); reload(); }} />}
       {modal && (
         <EntityModal
           title={modal.driver ? `Edit ${modal.driver.fullName}` : 'Add a driver'}
@@ -234,5 +257,62 @@ export function StaffDrivers() {
         />
       )}
     </div>
+  );
+}
+
+const DOC_TONE = (d) => (d.missing || d.expired ? 'red' : d.expiringSoon ? 'amber' : 'green');
+
+/** ID-65, ID-66: document status at a glance. An expired or missing document blocks assignment. */
+function DocsCell({ docs = [], onOpen }) {
+  const bad = docs.filter((d) => d.missing || d.expired);
+  const soon = docs.filter((d) => d.expiringSoon);
+  const tone = bad.length ? 'red' : soon.length ? 'amber' : 'green';
+  const label = bad.length ? `${bad.length} expired or missing` : soon.length ? `${soon.length} expiring soon` : 'All valid';
+  return <button type="button" className={`badge ${tone}`} style={{ border: 0, cursor: 'pointer' }} onClick={onOpen}>{label}</button>;
+}
+
+function DocsModal({ type, id, name, documents, canEdit, onClose, onSaved }) {
+  const [draft, setDraft] = useState(() => Object.fromEntries(documents.map((d) => [d.type, { reference: d.reference || '', expiresOn: d.expiresOn || '' }])));
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      for (const d of documents) {
+        const v = draft[d.type];
+        if (v.expiresOn && (v.expiresOn !== d.expiresOn || v.reference !== (d.reference || ''))) {
+          await api.put(`/staff/${type}/${id}/documents`, { docType: d.type, reference: v.reference || undefined, expiresOn: v.expiresOn });
+        }
+      }
+      onSaved();
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={`Documents - ${name}`} onClose={onClose}>
+      <div className="stack">
+        {err && <Alert tone="error">{err}</Alert>}
+        {documents.map((d) => (
+          <div key={d.type} className="stack-sm">
+            <div className="row-between"><strong>{d.label}</strong><span className={`badge ${DOC_TONE(d)}`}>{d.missing ? 'Missing' : d.expired ? 'Expired' : d.expiringSoon ? 'Expires soon' : 'Valid'}</span></div>
+            {canEdit ? (
+              <div className="form-grid two">
+                <TextField label="Reference" value={draft[d.type].reference} onChange={(e) => setDraft({ ...draft, [d.type]: { ...draft[d.type], reference: e.target.value } })} />
+                <TextField label="Expires on" type="date" value={draft[d.type].expiresOn} onChange={(e) => setDraft({ ...draft, [d.type]: { ...draft[d.type], expiresOn: e.target.value } })} />
+              </div>
+            ) : (
+              <p className="small muted">{d.reference || 'No reference'}{d.expiresOn ? ` - expires ${d.expiresOn}` : ''}</p>
+            )}
+          </div>
+        ))}
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-subtle" onClick={onClose}>Close</button>
+          {canEdit && <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving...' : 'Save documents'}</button>}
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -13,6 +13,7 @@ import { router as admin } from './admin.js';
 import { router as pricing } from './pricing.js';
 import { router as receipts, staffRouter as staffReceipts } from './receipts.js';
 import { router as journey, publicRouter as track, staffRouter as staffJourney } from './journey.js';
+import { router as driver } from './driver.js';
 
 /** Central route registry. Each module adds its router here (see docs/SPRINTS.md). */
 export function registerRoutes(api) {
@@ -36,5 +37,6 @@ export function registerRoutes(api) {
   api.use('/track', track);
   api.use('/staff', staffJourney);
   api.use('/staff', staffReceipts);
+  api.use('/driver', driver);
   api.use('/admin', admin);
 }

@@ -179,7 +179,7 @@ test('US9.9 status rules: cannot skip steps; completing emails a review invitati
   assert.equal(done.body.booking.status, 'completed');
   assert.equal((await t.pool.query("SELECT 1 FROM notifications WHERE kind='journey_completed' AND booking_id=$1", [job.id])).rowCount, 1);
   assert.equal((await t.call('POST', `/staff/bookings/${job.id}/status`, { token: staff, body: { status: 'on_route', etaMinutes: 5 } })).status, 409, 'cannot reopen a completed journey');
-  assert.equal((await t.call('POST', `/staff/bookings/${job.id}/cancel`, { token: staff, body: {} })).status, 409, 'cannot cancel a completed journey');
+  assert.equal((await t.call('POST', `/staff/bookings/${job.id}/cancel`, { token: staff, body: { reason: 'Customer asked' } })).status, 409, 'cannot cancel a completed journey');
 });
 
 test('unassign puts the booking back on the needs-a-driver list', async () => {
