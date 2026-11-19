@@ -12,6 +12,7 @@ export const config = {
   jwtSecret: env.JWT_SECRET || 'dev-only-secret-change-me',
   jwtExpiresIn: env.JWT_EXPIRES_IN || '7d',
   corsOrigin: env.CORS_ORIGIN || 'http://localhost:5173',
+  publicUrl: env.PUBLIC_URL || 'http://localhost:5173',
 };
 
 if (isProd && config.jwtSecret === 'dev-only-secret-change-me') {

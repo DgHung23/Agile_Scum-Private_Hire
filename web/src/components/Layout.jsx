@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../icons.jsx';
+import { isStaffRole, useAuth } from '../auth.jsx';
 
-export function Brand() {
+export function Brand({ to = '/' }) {
   return (
-    <Link to="/" className="brand" aria-label="PrivateHire Cars home">
+    <Link to={to} className="brand" aria-label="PrivateHire Cars home">
       <span className="brand-mark">
         <Icon name="car" size={18} />
       </span>
@@ -13,34 +14,75 @@ export function Brand() {
   );
 }
 
-const PUBLIC_LINKS = [
-  { to: '/services', label: 'Services' },
-  { to: '/contact', label: 'Help & enquiries' },
-];
+const initials = (name = '') =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0].toUpperCase())
+    .join('');
+
+function linksFor(user) {
+  if (!user) {
+    return [
+      { to: '/services', label: 'Services' },
+      { to: '/contact', label: 'Help & enquiries' },
+    ];
+  }
+  if (isStaffRole(user)) return [{ to: '/staff', label: 'Staff area' }];
+  return [
+    { to: '/book', label: 'Book' },
+    { to: '/trips', label: 'My trips' },
+    { to: '/messages', label: 'Messages' },
+    { to: '/contact', label: 'Help' },
+  ];
+}
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  const { user, logout } = useAuth();
+  const nav = useNavigate();
   useEffect(() => setOpen(false), [pathname]);
+  const links = linksFor(user);
+
+  const doLogout = () => {
+    nav('/', { replace: true }); // navigate first so the route guard does not redirect to /login
+    logout();
+  };
 
   return (
     <header className="navbar">
       <div className="container navbar-inner">
-        <Brand />
+        <Brand to={user ? (isStaffRole(user) ? '/staff' : '/dashboard') : '/'} />
         <nav className="nav-links" aria-label="Main">
-          {PUBLIC_LINKS.map((l) => (
+          {links.map((l) => (
             <NavLink key={l.to} to={l.to} className="nav-link">
               {l.label}
             </NavLink>
           ))}
         </nav>
         <div className="nav-actions">
-          <Link to="/login" className="btn btn-subtle btn-sm">
-            Log in
-          </Link>
-          <Link to="/register" className="btn btn-sm">
-            Sign up
-          </Link>
+          {user ? (
+            <>
+              <Link to={isStaffRole(user) ? '/staff' : '/account'} className="row" style={{ gap: 8, textDecoration: 'none' }}>
+                <span className="avatar" aria-hidden="true">{initials(user.fullName)}</span>
+                <span className="small strong">{user.fullName.split(' ')[0]}</span>
+              </Link>
+              <button className="btn btn-subtle btn-sm" onClick={doLogout}>
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="btn btn-subtle btn-sm">
+                Log in
+              </Link>
+              <Link to="/register" className="btn btn-sm">
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
         <button
           className="btn btn-ghost nav-toggle"
@@ -53,18 +95,31 @@ export function Navbar() {
       </div>
       {open && (
         <div className="mobile-menu">
-          {PUBLIC_LINKS.map((l) => (
+          {links.map((l) => (
             <NavLink key={l.to} to={l.to} className="nav-link">
               {l.label}
             </NavLink>
           ))}
+          {user && (
+            <NavLink to={isStaffRole(user) ? '/staff' : '/account'} className="nav-link">
+              My account
+            </NavLink>
+          )}
           <hr />
-          <Link to="/login" className="btn btn-subtle btn-block btn-lg">
-            Log in
-          </Link>
-          <Link to="/register" className="btn btn-block btn-lg">
-            Sign up
-          </Link>
+          {user ? (
+            <button className="btn btn-subtle btn-block btn-lg" onClick={doLogout}>
+              Log out
+            </button>
+          ) : (
+            <>
+              <Link to="/login" className="btn btn-subtle btn-block btn-lg">
+                Log in
+              </Link>
+              <Link to="/register" className="btn btn-block btn-lg">
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
       )}
     </header>
@@ -120,14 +175,67 @@ export function Footer() {
   );
 }
 
+const TABS = [
+  { to: '/dashboard', label: 'Home', icon: 'home' },
+  { to: '/book', label: 'Book', icon: 'car' },
+  { to: '/trips', label: 'Trips', icon: 'calendar' },
+  { to: '/messages', label: 'Messages', icon: 'inbox' },
+  { to: '/account', label: 'Account', icon: 'user' },
+];
+
+/** Phone-style bottom navigation for logged-in customers (hidden on desktop). */
+function BottomBar() {
+  return (
+    <nav className="bottom-bar" aria-label="Customer">
+      {TABS.map((t) => (
+        <NavLink key={t.to} to={t.to} className={({ isActive }) => (isActive ? 'active' : '')}>
+          <Icon name={t.icon} size={22} />
+          {t.label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
 export function PublicLayout() {
+  const { user } = useAuth();
+  const customer = user && !isStaffRole(user);
   return (
     <>
       <Navbar />
-      <main id="main">
+      <main id="main" className={customer ? 'has-bottom-bar' : ''}>
         <Outlet />
       </main>
       <Footer />
+      {customer && <BottomBar />}
+    </>
+  );
+}
+
+const STAFF_NAV = [
+  { to: '/staff', label: 'Dashboard', icon: 'grid', end: true },
+  { to: '/staff/outbox', label: 'Outbox', icon: 'inbox' },
+];
+
+export function StaffLayout() {
+  const { user } = useAuth();
+  const items = STAFF_NAV.filter((i) => !i.admin || user?.role === 'admin');
+  return (
+    <>
+      <Navbar />
+      <div className="staff-shell">
+        <nav className="staff-nav" aria-label="Staff">
+          {items.map((i) => (
+            <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => (isActive ? 'active' : '')}>
+              <Icon name={i.icon} size={18} />
+              {i.label}
+            </NavLink>
+          ))}
+        </nav>
+        <main className="staff-main" id="main">
+          <Outlet />
+        </main>
+      </div>
     </>
   );
 }
