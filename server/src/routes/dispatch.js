@@ -18,7 +18,7 @@ const idCheck = (id) => {
 /** The text sent when the driver is near (R6, US4.3). Includes registration, colour and make. */
 export function arrivalSmsText(b, eta) {
   const first = (b.driver_name || 'Your driver').split(' ')[0];
-  return `PrivateHire: ${first} is about ${eta} min away. Look for a ${b.cab_colour} ${b.cab_make} ${b.cab_model}, reg ${b.cab_reg}. Booking ${b.ref}. Check the reg before you get in.`;
+  return `Private Hire: ${first} is about ${eta} min away. Look for a ${b.cab_colour} ${b.cab_make} ${b.cab_model}, reg ${b.cab_reg}. Booking ${b.ref}. Check the reg before you get in.`;
 }
 
 /** Dispatch board: what needs a driver (online/priority first), what is assigned, what is on the road. */
@@ -166,7 +166,7 @@ router.post(
               bookingId: row.id,
               sentBy: req.user.id,
               subject: `Your driver is on the way - ${row.ref}`,
-              body: `Hello ${row.customer_name},\n\nYour driver ${row.driver_name} is on the way (about ${etaMinutes} minutes).\n\nCar: ${row.cab_colour} ${row.cab_make} ${row.cab_model}\nRegistration: ${row.cab_reg}\n\nPlease check the registration matches before you get in.\n\nThe PrivateHire Cars team`,
+              body: `Hello ${row.customer_name},\n\nYour driver ${row.driver_name} is on the way (about ${etaMinutes} minutes).\n\nCar: ${row.cab_colour} ${row.cab_make} ${row.cab_model}\nRegistration: ${row.cab_reg}\n\nPlease check the registration matches before you get in.\n\nThe Private Hire Cars team`,
             }, db);
             sent.push({ channel: 'email', id: n.id });
           }
@@ -181,7 +181,7 @@ router.post(
           bookingId: row.id,
           sentBy: req.user.id,
           subject: `How was your journey? - ${row.ref}`,
-          body: `Hello ${row.customer_name},\n\nThank you for travelling with PrivateHire Cars.\n\nPlease tell us how it went - rate your journey, the car and your driver from My trips.\n\nThe PrivateHire Cars team`,
+          body: `Hello ${row.customer_name},\n\nThank you for travelling with Private Hire Cars.\n\nPlease tell us how it went - rate your journey, the car and your driver from My trips.\n\nThe Private Hire Cars team`,
         }, db);
       }
       return { row: await loadBookingRow(db, row.id), sent };

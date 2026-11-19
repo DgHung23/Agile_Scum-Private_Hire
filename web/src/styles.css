@@ -1,14 +1,14 @@
-/* PrivateHire Cars design system
+/* Private Hire Cars design system
    Direction: Uber's black/white duet + pill interactive shapes (docs/reference/design-uber.md),
    Airbnb's soft 14-16px cards, generous whitespace and calm form fields (docs/reference/design-airbnb.md).
    One brand colour (ink black). Semantic colours are used ONLY for status. */
 
 :root {
   --primary: #ff385c; /* Airbnb Rausch: every primary action */
-  --primary-hover: #e00b41;
+  --primary-hover: #d70f3d; /* brand Rose 700 */
   --primary-soft: #fff0f3;
-  --primary-disabled: #ffd1da;
-  --ink: #222222;
+  --primary-disabled: #ffd1da; /* brand Blush */
+  --ink: #17151a; /* brand Ink */
   --ink-2: #1c1c1c;
   --body: #6a6a6a;
   --mute: #929292;
@@ -37,7 +37,7 @@
   --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.16);
   --shadow-3: 0 2px 8px rgba(0, 0, 0, 0.16);
 
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --gutter: 16px;
   --nav-h: 64px;
 }
@@ -72,15 +72,19 @@ h3,
 h4 {
   margin: 0;
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   line-height: 1.2;
 }
 h1 {
   font-size: clamp(32px, 5.4vw, 52px);
-  line-height: 1.15;
+  line-height: 1.1;
+  font-weight: 800; /* brand: headlines ExtraBold */
+  letter-spacing: -0.02em;
 }
 h2 {
   font-size: clamp(24px, 3.4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 h3 {
   font-size: 20px;
@@ -245,6 +249,11 @@ p {
   font-size: 20px;
   text-decoration: none;
   letter-spacing: -0.2px;
+}
+.brand-logo {
+  height: 28px;
+  width: auto;
+  display: block;
 }
 .brand-mark {
   width: 32px;

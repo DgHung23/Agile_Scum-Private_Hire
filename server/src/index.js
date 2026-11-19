@@ -10,7 +10,7 @@ async function main() {
   else if (process.env.SEED_ON_START === 'true') await (await import('./seed.js')).seed();
   const app = createApp();
   const server = app.listen(config.port, () => {
-    console.log(`[api] PrivateHire API listening on http://localhost:${config.port}  (${config.env})`);
+    console.log(`[api] Private Hire API listening on http://localhost:${config.port}  (${config.env})`);
   });
   const stop = () => server.close(() => pool.end().then(() => process.exit(0)));
   process.on('SIGINT', stop);

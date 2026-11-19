@@ -29,7 +29,7 @@ export async function buildReceipt(row, customer) {
   return {
     receiptNo: 'RC-' + row.ref.slice(3),
     issuedAt: first?.createdAt || row.created_at,
-    company: { name: 'PrivateHire Cars', address: 'London, United Kingdom', phone: '020 7000 0000', email: 'bookings@privatehire.example' },
+    company: { name: 'Private Hire Cars', address: 'London, United Kingdom', phone: '020 7000 0000', email: 'bookings@privatehire.example' },
     customer: { name: customer.full_name, email: customer.email, address: [customer.address_line, customer.city, customer.postcode].filter(Boolean).join(', ') },
     booking: { ref: b.ref, status: b.status, service: b.service.label, pickup: b.pickup, destination: b.destination, pickupAt: b.pickupAt, passengers: b.passengers, size: b.size.label, hours: b.hours, channel: b.channel },
     price: b.price,

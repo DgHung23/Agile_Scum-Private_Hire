@@ -176,7 +176,7 @@ router.post(
         userId: u.id,
         to: u.email,
         kind: 'password_reset',
-        subject: 'Reset your PrivateHire Cars password',
+        subject: 'Reset your Private Hire Cars password',
         body: `Hello ${u.full_name},
 
 We received a request to reset your password. Use this link within 1 hour:
@@ -185,7 +185,7 @@ ${config.publicUrl}/reset-password?token=${token}
 
 If you did not ask for this you can ignore this email - your password has not changed.
 
-The PrivateHire Cars team`,
+The Private Hire Cars team`,
       });
     }
     res.json({ message: 'If that email is registered, we have sent you a link to reset your password.' });
@@ -212,12 +212,12 @@ router.post(
         userId: r.user_id,
         to: users[0].email,
         kind: 'password_changed',
-        subject: 'Your PrivateHire Cars password was changed',
+        subject: 'Your Private Hire Cars password was changed',
         body: `Hello ${users[0].full_name},
 
 Your password has just been changed. If this was not you, contact us straight away on 020 7000 0000.
 
-The PrivateHire Cars team`,
+The Private Hire Cars team`,
       }, db);
     });
     res.json({ ok: true });

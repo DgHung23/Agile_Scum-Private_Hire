@@ -62,7 +62,7 @@ export function offerEmail(offer, user, favourite = null) {
       `Discount: ${offer.discount_pct}% off, on top of your 15% online discount\n` +
       `Valid until: ${fmtDay(offer.expires_at)}\n\n` +
       `Enter the code when you review your booking: ${config.publicUrl}/book\n\n` +
-      'The PrivateHire Cars team',
+      'The Private Hire Cars team',
   };
 }
 

@@ -27,20 +27,20 @@ export const loginUrl = () => `${config.publicUrl}/login`;
 /* ---- message templates ---- */
 export const templates = {
   welcome: (user) => ({
-    subject: 'Welcome to PrivateHire Cars - your account is ready',
+    subject: 'Welcome to Private Hire Cars - your account is ready',
     body:
       `Hello ${user.full_name},\n\n` +
-      'Thank you for registering with PrivateHire Cars. Your account has been created.\n\n' +
+      'Thank you for registering with Private Hire Cars. Your account has been created.\n\n' +
       `Log in to book your first journey: ${loginUrl()}\n\n` +
       'Remember: every booking you make online is 15% cheaper, and online customers get priority service.\n\n' +
-      'The PrivateHire Cars team',
+      'The Private Hire Cars team',
   }),
   accountCreatedByStaff: (user) => ({
-    subject: 'Your PrivateHire Cars account has been created',
+    subject: 'Your Private Hire Cars account has been created',
     body:
       `Hello ${user.full_name},\n\n` +
-      'As requested on your call, we have created a PrivateHire Cars account for you.\n' +
+      'As requested on your call, we have created a Private Hire Cars account for you.\n' +
       `Use "Forgot password" at ${loginUrl()} to choose your own password and start booking online with 15% off.\n\n` +
-      'The PrivateHire Cars team',
+      'The Private Hire Cars team',
   }),
 };

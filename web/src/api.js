@@ -1,4 +1,4 @@
-// Thin fetch wrapper around the PrivateHire REST API (/api/v1). The same contract serves the future mobile app.
+// Thin fetch wrapper around the Private Hire REST API (/api/v1). The same contract serves the future mobile app.
 const BASE = (import.meta.env.VITE_API_URL || '') + '/api/v1';
 const TOKEN_KEY = 'ph_token';
 

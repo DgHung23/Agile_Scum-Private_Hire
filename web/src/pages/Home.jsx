@@ -55,7 +55,7 @@ export default function Home() {
               <span className="badge black" style={{ alignSelf: 'flex-start' }}>
                 <Icon name="tag" size={14} /> 15% off every online booking
               </span>
-              <h1>Go anywhere in London with PrivateHire</h1>
+              <h1>Go anywhere in London with Private Hire</h1>
               <p className="muted" style={{ fontSize: 18, maxWidth: 520 }}>
                 A fast, friendly and reliable minicab service. Book online in under a minute, see the price up front and
                 know exactly who is picking you up.

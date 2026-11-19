@@ -84,7 +84,7 @@ export async function cancelBooking(db, { id, actor, reason = null, override = f
       'It can take 3-5 working days to appear on your statement.',
     );
   } else lines.push('There was nothing to refund on this booking.');
-  lines.push('', 'We hope to see you again soon.', '', 'The PrivateHire Cars team');
+  lines.push('', 'We hope to see you again soon.', '', 'The Private Hire Cars team');
   await sendEmail(
     { userId: row.customer_id, to: row.customer_email, subject: `Booking cancelled - ${row.ref}`, body: lines.join('\n'), kind: 'booking_cancelled', bookingId: id, sentBy: actor.role !== 'customer' ? actor.id : null },
     db,
@@ -231,7 +231,7 @@ export async function amendBooking(db, { id, actor, input, override = false }) {
   if (plan.difference > 0) lines.push(`Extra charged: ${gbp(plan.difference)}${settlement ? ` to ${describeMethod(settlement)}` : ''}`);
   if (plan.difference < 0) lines.push(`Refunded: ${gbp(Math.abs(plan.difference))}${settlement ? ` to ${describeMethod(settlement)}` : ''}`);
   if (driverDropped) lines.push('', 'Your driver will be re-assigned for the new time and we will let you know.');
-  lines.push('', 'The PrivateHire Cars team');
+  lines.push('', 'The Private Hire Cars team');
   await sendEmail(
     { userId: row.customer_id, to: row.customer_email, subject: `Booking updated - ${row.ref}`, body: lines.join('\n'), kind: 'booking_amended', bookingId: id, sentBy: actor.role !== 'customer' ? actor.id : null },
     db,
