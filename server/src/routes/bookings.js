@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { query, tx } from '../db.js';
 import { customerOnly, optionalAuth } from '../middleware/auth.js';
 import { body, queryOf, wrap } from '../middleware/validate.js';
-import { notFound } from '../errors.js';
+import { HttpError, notFound } from '../errors.js';
+import { resolveOffer } from '../services/offers.js';
 import { availabilityBySize } from '../services/availability.js';
 import { computeQuote } from '../services/pricing.js';
 import { cancelBooking, amendBooking, planAmendment } from '../services/changes.js';
@@ -50,11 +51,13 @@ export const journeySchema = z.object({
 
 const quoteSchema = journeySchema.extend({
   channel: z.enum(['online', 'phone', 'in_person']).optional(),
+  offerCode: z.string().trim().max(30).optional(),
 });
 
 const createSchema = journeySchema.extend({
   sizeCode: z.string({ error: 'Choose a cab size' }).min(1, 'Choose a cab size'),
   notifyPref: z.enum(['email', 'text', 'both']).default('email'),
+  offerCode: z.string().trim().max(30).optional(),
   payment: paymentSchema,
 });
 
@@ -73,10 +76,16 @@ router.post(
     const j = await prepareJourney(null, req.body);
     const sizes = (await query('SELECT * FROM cab_sizes ORDER BY sort')).rows;
     const counts = await availabilityBySize(null, j.window);
+    let offer = null;
+    if (req.body.offerCode) {
+      if (!req.user || req.user.role !== 'customer') throw new HttpError(400, 'Log in to use an offer code.', 'invalid_offer', { offerCode: 'Log in to use an offer code.' });
+      offer = await resolveOffer(null, req.body.offerCode, req.user.id);
+    }
 
     res.json({
       channel,
       onlineDiscountPct: settings.onlineDiscountPct,
+      offer: offer ? { code: offer.code, discountPct: offer.discount_pct, title: offer.title } : null,
       distanceMiles: j.distance.miles,
       distanceSource: j.distance.source,
       durationMinutes: j.durationMinutes,
@@ -90,6 +99,7 @@ router.post(
           hours: j.hours,
           channel,
           onlineDiscountPct: settings.onlineDiscountPct,
+          offerPct: offer ? offer.discount_pct : 0,
         });
         return {
           code: s.code,
@@ -185,9 +195,11 @@ router.get(
     if (!row || row.customer_id !== req.user.id) throw notFound('Booking not found');
     const settings = await getSettings();
     const pay = await query("SELECT * FROM payments WHERE booking_id=$1 AND status='approved' ORDER BY created_at", [row.id]);
+    const rv = (await query('SELECT * FROM reviews WHERE booking_id=$1', [row.id])).rows[0];
     res.json({
       booking: serializeBooking(row, { cancelWindowHours: settings.cancelWindowHours }),
       payments: pay.rows.map(serializePayment),
+      review: rv ? { journeyRating: rv.journey_rating, cabRating: rv.cab_rating, driverRating: rv.driver_rating, comment: rv.comment, createdAt: rv.created_at } : null,
     });
   }),
 );

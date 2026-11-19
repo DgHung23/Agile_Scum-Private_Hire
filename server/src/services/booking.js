@@ -5,6 +5,7 @@ import { bookingWindow, findAvailableCabs } from './availability.js';
 import { computeQuote, estimateDistance, estimateDuration } from './pricing.js';
 import { sendEmail } from './notify.js';
 import { createSavedCard, describeMethod, takePayment } from './payments.js';
+import { resolveOffer } from './offers.js';
 
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const MIN_LEAD_MINUTES = 10;
@@ -258,6 +259,9 @@ export async function createBooking(db, { customer, input, channel, createdBy = 
     });
   }
 
+  // US10.4: optional offer code. Checked inside the transaction so the same code cannot be used twice at once.
+  const offer = input.offerCode ? await resolveOffer(db, input.offerCode, customer.id) : null;
+
   const quote = computeQuote({
     service: j.service,
     size: { ...size, multiplier: Number(size.multiplier) },
@@ -265,7 +269,7 @@ export async function createBooking(db, { customer, input, channel, createdBy = 
     hours: j.hours,
     channel,
     onlineDiscountPct: settings.onlineDiscountPct,
-    offerPct: extra.offerPct || 0,
+    offerPct: offer ? offer.discount_pct : 0,
   });
 
   // Serialise concurrent bookings of the same cab size (held until this transaction ends). Without this, two
@@ -287,8 +291,8 @@ export async function createBooking(db, { customer, input, channel, createdBy = 
           newRef(), customer.id, j.service.code, j.pickup, j.destination, j.distance.miles, j.hours, j.pickupAt,
           j.window.end, j.passengers, size.code, cab.id, channel, channel === 'online', notifyPref,
           ['text', 'both'].includes(notifyPref) ? customer.phone : null,
-          quote.full, quote.discountOnline, quote.discountOffer, extra.offerCode || null, quote.total, createdBy,
-          input.notes || null, extra.offerPct || 0,
+          quote.full, quote.discountOnline, quote.discountOffer, offer ? offer.code : null, quote.total, createdBy,
+          input.notes || null, offer ? offer.discount_pct : 0,
         ],
       );
       await db.query('RELEASE SAVEPOINT try_cab');
@@ -308,6 +312,10 @@ export async function createBooking(db, { customer, input, channel, createdBy = 
       'no_availability',
       undefined,
     ).withExtra({ alternatives });
+  }
+
+  if (offer) {
+    await db.query('INSERT INTO offer_redemptions (offer_id, user_id, booking_id) VALUES ($1,$2,$3)', [offer.id, customer.id, inserted]);
   }
 
   // US5.3: take payment inside the same transaction. A decline throws 402 and the booking is rolled back.

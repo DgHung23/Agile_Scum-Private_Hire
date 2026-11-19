@@ -5,6 +5,7 @@ import { Icon } from '../icons.jsx';
 import { fmtDate, fmtDateTime, fmtTime, money } from '../format.js';
 import { Alert, Empty, Kv, Loading, Modal, PageHeader, StatusBadge, TextArea, useLoad, useToast } from '../ui.jsx';
 import { BookingCard, PriceBreakdown, RouteLine } from '../components/BookingBits.jsx';
+import { ReviewForm, ReviewSummary } from '../components/ReviewForm.jsx';
 
 export function Trips() {
   const [when, setWhen] = useState('upcoming');
@@ -174,6 +175,12 @@ export function TripDetail() {
         </section>
 
         <p className="small"><Link to={`/contact?booking=${b.id}`} className="strong"><Icon name="message" size={14} /> Ask us about this trip</Link></p>
+        {b.status === 'completed' && (
+          <section className="card stack">
+            <h3>{data.review ? 'Your review' : 'How was your journey?'}</h3>
+            {data.review ? <ReviewSummary review={data.review} /> : <ReviewForm bookingId={b.id} onDone={() => { toast('Thank you for your review', 'success'); reload(); }} />}
+          </section>
+        )}
         {cancelled && (
           <Alert tone="warn" icon="alert">This booking was cancelled{b.cancelledAt ? ` on ${fmtDate(b.cancelledAt)}` : ''}. {data.payments.some((p) => p.kind === 'refund') ? 'Your refund has been issued.' : ''}</Alert>
         )}

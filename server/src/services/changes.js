@@ -55,6 +55,7 @@ export async function cancelBooking(db, { id, actor, reason = null, override = f
   assertChangeable(row, settings, { override });
 
   const paid = await netPaid(db, id);
+  await db.query('DELETE FROM offer_redemptions WHERE booking_id=$1', [id]); // a cancelled booking gives the offer code back
   await db.query(
     `UPDATE bookings SET status='cancelled', cancelled_at=now(), cancel_reason=$2, driver_id=NULL, eta_minutes=NULL,
             payment_status=CASE WHEN $3::numeric > 0 THEN 'refunded' ELSE payment_status END, updated_at=now()

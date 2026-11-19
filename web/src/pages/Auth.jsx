@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { isStaffRole, useAuth } from '../auth.jsx';
 import { Alert, TextField } from '../ui.jsx';
@@ -124,6 +124,94 @@ export function Register() {
           }}
         />
         <p className="small center muted">Already registered? <Link to="/login" className="strong">Log in</Link></p>
+      </div>
+    </div>
+  );
+}
+
+/** US1.6: ask for a reset link. The answer is the same whether or not the email is registered. */
+export function ForgotPassword() {
+  const [email, setEmail] = useState('');
+  const [err, setErr] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    const m = v.email(email);
+    if (m) return setErr(m);
+    setErr('');
+    setBusy(true);
+    try {
+      await api.post('/auth/forgot', { email: email.trim() });
+      setSent(true);
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="container page">
+      <div className="narrow card card-elevated stack-lg">
+        <div>
+          <h2>Reset your password</h2>
+          <p className="muted" style={{ marginTop: 6 }}>Enter your email and we will send you a link to choose a new password.</p>
+        </div>
+        {sent ? (
+          <Alert tone="success">
+            If that email is registered, we have sent a reset link. It works for 1 hour. In this prototype the email appears in{' '}
+            <strong>Messages</strong> after you log in, or in the staff Outbox.
+          </Alert>
+        ) : (
+          <form className="stack" onSubmit={submit} noValidate>
+            <TextField label="Email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} error={err} />
+            <button className="btn btn-lg btn-block" disabled={busy}>{busy ? 'Sending...' : 'Send reset link'}</button>
+          </form>
+        )}
+        <p className="small center"><Link to="/login" className="strong">Back to log in</Link></p>
+      </div>
+    </div>
+  );
+}
+
+export function ResetPassword() {
+  const [params] = useSearchParams();
+  const token = params.get('token') || '';
+  const nav = useNavigate();
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [errors, setErrors] = useState({});
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    const x = {};
+    const m = v.password(pw);
+    if (m) x.pw = m;
+    if (pw2 !== pw) x.pw2 = 'The passwords do not match';
+    setErrors(x);
+    if (Object.keys(x).length) return;
+    setBusy(true);
+    try {
+      await api.post('/auth/reset', { token, password: pw });
+      nav('/login', { replace: true, state: { reset: true } });
+    } catch (e2) {
+      setErr(e2.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="container page">
+      <div className="narrow card card-elevated stack-lg">
+        <h2>Choose a new password</h2>
+        {!token && <Alert tone="error">This reset link is not valid. <Link to="/forgot-password" className="strong">Ask for a new one</Link>.</Alert>}
+        {err && <Alert tone="error">{err} <Link to="/forgot-password" className="strong">Ask for a new link</Link></Alert>}
+        <form className="stack" onSubmit={submit} noValidate>
+          <TextField label="New password" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} error={errors.pw} hint="At least 8 characters with a letter and a number" />
+          <TextField label="Repeat new password" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} error={errors.pw2} />
+          <button className="btn btn-lg btn-block" disabled={busy || !token}>{busy ? 'Saving...' : 'Change password'}</button>
+        </form>
       </div>
     </div>
   );

@@ -7,6 +7,8 @@ import { router as fleet } from './fleet.js';
 import { router as callcentre } from './callcentre.js';
 import { router as enquiries, staffRouter as staffEnquiries } from './enquiries.js';
 import { router as dispatch } from './dispatch.js';
+import { router as reviews, staffRouter as staffReviews } from './reviews.js';
+import { customerRouter as offers, staffRouter as staffLoyalty } from './loyalty.js';
 
 /** Central route registry. Each module adds its router here (see docs/SPRINTS.md). */
 export function registerRoutes(api) {
@@ -14,10 +16,14 @@ export function registerRoutes(api) {
   api.use('/notifications', notifications);
   api.use('/catalog', catalog);
   api.use('/bookings', bookings);
+  api.use('/bookings', reviews);
+  api.use('/offers', offers);
   api.use('/payments', payments);
   api.use('/staff', fleet);
   api.use('/enquiries', enquiries);
   api.use('/staff', callcentre);
   api.use('/staff', staffEnquiries);
   api.use('/staff', dispatch);
+  api.use('/staff', staffReviews);
+  api.use('/staff', staffLoyalty);
 }

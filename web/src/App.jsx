@@ -3,7 +3,7 @@ import { PublicLayout, StaffLayout } from './components/Layout.jsx';
 import { RequireAuth } from './auth.jsx';
 import Home from './pages/Home.jsx';
 import ComingSoon from './pages/ComingSoon.jsx';
-import { Login, Register, StaffLogin } from './pages/Auth.jsx';
+import { ForgotPassword, Login, Register, ResetPassword, StaffLogin } from './pages/Auth.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Account from './pages/Account.jsx';
 import Messages from './pages/Messages.jsx';
@@ -20,6 +20,9 @@ import StaffBook from './pages/staff/StaffBook.jsx';
 import StaffAvailability from './pages/staff/StaffAvailability.jsx';
 import StaffEnquiries from './pages/staff/Enquiries.jsx';
 import Dispatch from './pages/staff/Dispatch.jsx';
+import StaffReviews from './pages/staff/Reviews.jsx';
+import StaffOffers from './pages/staff/Offers.jsx';
+import StaffReports from './pages/staff/Reports.jsx';
 import Contact from './pages/Contact.jsx';
 
 const customer = (el) => <RequireAuth roles={['customer']}>{el}</RequireAuth>;
@@ -31,6 +34,8 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
+        <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="reset-password" element={<ResetPassword />} />
         <Route path="staff/login" element={<StaffLogin />} />
         <Route path="book" element={<Book />} />
         <Route path="services" element={<Services />} />
@@ -60,6 +65,9 @@ export default function App() {
         <Route path="call-desk/:id/book" element={<StaffBook />} />
         <Route path="dispatch" element={<Dispatch />} />
         <Route path="enquiries" element={<StaffEnquiries />} />
+        <Route path="reviews" element={<StaffReviews />} />
+        <Route path="offers" element={<StaffOffers />} />
+        <Route path="reports" element={<RequireAuth roles={['admin']}><StaffReports /></RequireAuth>} />
         <Route path="availability" element={<StaffAvailability />} />
         <Route path="fleet" element={<StaffFleet />} />
         <Route path="drivers" element={<StaffDrivers />} />

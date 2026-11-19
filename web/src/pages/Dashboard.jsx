@@ -4,11 +4,13 @@ import { useAuth } from '../auth.jsx';
 import { Icon } from '../icons.jsx';
 import { BookingCard } from '../components/BookingBits.jsx';
 import { Empty, Loading, PageHeader, useLoad } from '../ui.jsx';
+import { fmtDate } from '../format.js';
 
 /** Customer home. Offers are added in Sprint 3. */
 export default function Dashboard() {
   const { user } = useAuth();
   const { data, loading } = useLoad(() => api.get('/bookings?when=upcoming'));
+  const offers = useLoad(() => api.get('/offers/mine'));
   const upcoming = data?.bookings.slice(0, 3) || [];
   return (
     <div className="container page">
@@ -31,6 +33,22 @@ export default function Dashboard() {
             <p className="muted small">Confirmations and driver updates.</p>
           </Link>
         </div>
+
+        {offers.data?.offers.length > 0 && (
+          <section className="stack">
+            <h3>Your offers</h3>
+            <div className="grid grid-3">
+              {offers.data.offers.map((o) => (
+                <div key={o.id} className="card card-soft stack-sm">
+                  <div className="row-between"><span className="badge black"><Icon name="gift" size={12} /> {o.discountPct}% off</span><span className="tiny">Until {fmtDate(o.expiresAt)}</span></div>
+                  <div className="strong">{o.title}</div>
+                  <div className="small muted">Code <span className="kbd">{o.code}</span> - enter it when you review your booking.</div>
+                  <Link to="/book" className="btn btn-sm" style={{ alignSelf: 'flex-start' }}>Book now</Link>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="stack">
           <div className="row-between">
