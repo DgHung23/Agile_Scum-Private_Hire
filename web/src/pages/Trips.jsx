@@ -173,6 +173,7 @@ export function TripDetail() {
           {b.priority && <p className="small muted"><Icon name="zap" size={14} /> Priority service: online bookings are dispatched first.</p>}
         </section>
 
+        <p className="small"><Link to={`/contact?booking=${b.id}`} className="strong"><Icon name="message" size={14} /> Ask us about this trip</Link></p>
         {cancelled && (
           <Alert tone="warn" icon="alert">This booking was cancelled{b.cancelledAt ? ` on ${fmtDate(b.cancelledAt)}` : ''}. {data.payments.some((p) => p.kind === 'refund') ? 'Your refund has been issued.' : ''}</Alert>
         )}
