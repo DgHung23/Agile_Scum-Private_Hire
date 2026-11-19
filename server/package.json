@@ -12,7 +12,8 @@
     "seed:demo": "node src/seedDemo.js",
     "db:reset": "node src/migrate.js --reset && node src/seed.js",
     "db:demo": "node src/migrate.js --reset && node src/seedDemo.js",
-    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "docs:api": "node scripts/gen-api-doc.js"
   },
   "engines": {
     "node": ">=20"

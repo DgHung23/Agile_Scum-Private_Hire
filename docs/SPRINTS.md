@@ -15,6 +15,20 @@ Story IDs come from [reference/user-stories.md](reference/user-stories.md) (R# =
 5. Automated tests for the business rules in the module pass (`npm test` in `server/`).
 6. Merged to `main` and pushed with a descriptive commit.
 
+From backlog v3 the report's Definition of Done v2 (Table 25) also applies. How this build meets each added line:
+
+| Report DoD line | How it is met here |
+|---|---|
+| 2 Unit tests written and the whole suite passes | `node --test` suite in `server/test` (the report says "pytest"; this build is Node.js) |
+| 5 README and API documentation updated | README; `docs/API.md` is generated from the routers (`npm run docs:api`) |
+| 8 Every staff URL checked on the server (403 otherwise) | `requireRole` on every staff, manager, admin and driver route; tested in `auth.test.js` |
+| 9 Booking, dispatch, refund and record view store staff name and time | `audit_log`, `status_events`, `assignments` |
+| 10 WCAG 2.2 AA checks, works at 360 px and 1280 px | labelled fields, visible focus, colour contrast of the theme; browser runs at 390 px and 1366 px |
+| 11 No card data stored; personal data only where needed | brand, last 4, expiry only; data export, deletion and 12-month retention job |
+| 12 API reference hidden outside development | `/api/docs` only when `NODE_ENV` is not production |
+| 13 Rate limits on registration, messages and booking | registration and login limits (production), 3 receipt sends per booking per hour, booking holds |
+| 14 The red-team test for the story passes | red-team rows covered by tests: same reply for existing emails, lockout by account and IP, ownership 404s, server prices, one coupon per account, 24-hour window, refund limit, secret word, lost item tied to a booking, parallel booking |
+
 ## Sprint 1 - Foundation, accounts and fleet
 
 **Sprint goal:** a customer can register and log in, staff can log in, and staff can manage the fleet that availability
@@ -127,3 +141,13 @@ Story keys below are the report's Jira keys; `docs/TRACEABILITY.md` maps them to
 | V4 Fleet, dispatch and Driver view | `backlog-v3/fleet-dispatch` | ID-45, ID-65, ID-66, ID-67, ID-68, ID-77, ID-78, ID-79, N18, N26, N27, N30, N31, N34, N35, N36 | 151 API tests (expired document blocks assignment, driver steps, no-show after 10 min, breakdown and same-size replacement, late driver free cancel, GBP 50 staff refund limit per booking per day, cleaning charge, destination change, company cancel after alternatives, late-cancellation fee); browser run: manage page, Driver view on a phone, document status |
 | V5 Support and privacy | `backlog-v3/support-privacy` | ID-16, ID-20, ID-22, ID-60, N05, N14, N23, N24, N28, N29, N33 | 160 API tests (secret word required and receipt data not counted, lost item tied to a real booking and auto-matched, complaint due in 5 working days, Manager acts on driver, notes after verification, data export without secrets, account deletion keeps anonymous records, 12-month retention); browser run: help and FAQ on a phone, lost item, complaint, favourite place, staff support desk |
 | V6 Business accounts and manager dashboard | `backlog-v3/business-accounts` | N06, N07, N08, N09, N10, N11, N12, N32 | 170 API tests (apply and validation, Manager-only approval with credit limit, invite and accept by the right email, on-account booking with cost centre on the receipt, credit limit refusal, one invoice per unbilled journey due in 15 days, day 1/7 reminders and day 15 suspension, paying reinstates, leaver's future bookings, rejection reason); browser run: business page, on-account checkout, Manager companies queue, bookings-by-channel panel |
+| V7 Release | `backlog-v3/release` | DoD v2 lines 5, 12 | API reference generated from the routers (`npm run docs:api`, `/api/docs` in development only), traceability against Appendix C (99 of 101 active stories done, 1 partly, 1 not built), README and architecture updated, 171/171 tests, 88-page regression crawl (6 roles x desktop and phone) with no errors or overflow, Docker image built and PDF rendering checked inside it |
+
+### Backlog v3 retrospective notes (draft for the report)
+
+- **Went well:** the report's diagrams (Figure 25 states, Figure 26 sequence, ERDs F1-F7) translated almost one to one
+  into tables and services, which made traceability easy; every module still shipped with tests and a browser run.
+- **Did not go well:** widening the scope late changed shared code (checkout, statuses, coupons) and older tests had to
+  follow; a layout regression in the staff side menu was only caught by a screenshot.
+- **Improve next time:** keep the report and the backlog in one place (Jira) from the start; run the regression crawl
+  automatically on every merge.

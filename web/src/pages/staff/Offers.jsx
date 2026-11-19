@@ -105,7 +105,7 @@ export default function StaffOffers() {
             </table>
           </div>
         </div>
-        <div><button className="btn btn-lg" disabled={busy}>{busy ? 'Sending...' : `Create coupon and send to ${picked.size || ''} customer${picked.size === 1 ? '' : 's'}`}</button></div>
+        <div><button className="btn btn-lg" style={{ maxWidth: '100%', whiteSpace: 'normal' }} disabled={busy}>{busy ? 'Sending...' : picked.size ? `Create coupon and send to ${picked.size} customer${picked.size === 1 ? '' : 's'}` : 'Create coupon'}</button></div>
       </form>
 
       <section className="stack">
